@@ -13,6 +13,25 @@ def execute(argv, data=None, timeout=30):
     return result.stdout
 
 
+def listening_ports(rows):
+    ports = {}
+    for line in rows.splitlines():
+        columns = line.split(None, 6)
+        if len(columns) < 6 or columns[0] not in ('tcp', 'udp') or ':' not in columns[4]:
+            continue
+        address, port = columns[4].rsplit(':', 1)
+        if not port.isdecimal() or not 1 <= int(port) <= 65535:
+            continue
+        address = address.strip('[]').split('%', 1)[0]
+        key = (columns[0], int(port), address)
+        entry = ports.setdefault(key, {'protocol': columns[0], 'address': address, 'port': int(port), 'processes': []})
+        for name, pid in re.findall(r'\("([^"\\]*)",pid=(\d+)', columns[6] if len(columns) > 6 else ''):
+            process = {'name': name, 'pid': int(pid)}
+            if process not in entry['processes']:
+                entry['processes'].append(process)
+    return [ports[key] for key in sorted(ports)]
+
+
 def main():
     raw = sys.stdin.read(8193)
     if len(raw) > 8192:
@@ -73,16 +92,7 @@ systemctl is-active --quiet ssh
         execute(prefix + ['/bin/sh', '-s'], script, timeout=280)
         return {'ok': True}
     rows = execute(prefix + ['/usr/bin/ss', '-H', '-lntup'])
-    ports = []
-    for line in rows.splitlines():
-        columns = line.split(None, 6)
-        if len(columns) < 6 or columns[0] not in ('tcp', 'udp'):
-            continue
-        address, port = columns[4].rsplit(':', 1)
-        if not port.isdecimal():
-            continue
-        ports.append({'protocol': columns[0], 'address': address.strip('[]'), 'port': int(port), 'process': columns[6][:300] if len(columns) > 6 else ''})
-    return ports
+    return listening_ports(rows)
 
 
 if __name__ == '__main__':

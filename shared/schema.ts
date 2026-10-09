@@ -89,5 +89,5 @@ export interface Forward {
   id: string; studentId: string; resourceId: string; protocol: 'tcp' | 'udp'; targetPort: number;
   publicPort: number; note: string; enabled: boolean; state: string; error: string | null;
 }
-export interface ListeningPort { protocol: 'tcp' | 'udp'; address: string; port: number; process: string }
+export interface ListeningPort { protocol: 'tcp' | 'udp'; address: string; port: number; processes: { name: string; pid: number }[] }
 export interface Capacity { count: number; limits: { cpu: number; memory: number; disk: number; ip: number; vmid: number }; limiting: string[] }

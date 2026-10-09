@@ -30,5 +30,29 @@ class GostRestartTests(unittest.TestCase):
             execute.assert_not_called()
 
 
+class ListeningPortTests(unittest.TestCase):
+    def test_normalizes_addresses_and_preserves_only_names_and_pids(self):
+        rows = '''tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=42,fd=3),("systemd",pid=1,fd=9))
+udp UNCONN 0 0 127.0.0.53%lo:53 0.0.0.0:* users:(("systemd-resolve",pid=87,fd=12))
+tcp LISTEN 0 128 [::1]:631 [::]:* users:(("cupsd",pid=99,fd=7))
+tcp LISTEN 0 128 [fe80::1%eth0]:8080 [::]:*
+'''
+        ports = helper.listening_ports(rows)
+        self.assertEqual(ports[0]['processes'], [{'name': 'sshd', 'pid': 42}, {'name': 'systemd', 'pid': 1}])
+        self.assertEqual({port['address'] for port in ports}, {'0.0.0.0', '127.0.0.53', '::1', 'fe80::1'})
+        self.assertNotIn('fd=', json.dumps(ports))
+        self.assertNotIn('users:', json.dumps(ports))
+
+    def test_merges_duplicate_socket_rows_and_ignores_malformed_ports(self):
+        rows = '''tcp LISTEN 0 128 *:80 *:* users:(("nginx",pid=1,fd=3))
+tcp LISTEN 0 128 *:80 *:* users:(("nginx",pid=2,fd=3),("nginx",pid=1,fd=4))
+tcp LISTEN 0 128 0.0.0.0:99999 *:*
+invalid
+'''
+        ports = helper.listening_ports(rows)
+        self.assertEqual(len(ports), 1)
+        self.assertEqual(ports[0]['processes'], [{'name': 'nginx', 'pid': 1}, {'name': 'nginx', 'pid': 2}])
+
+
 if __name__ == '__main__':
     unittest.main()
