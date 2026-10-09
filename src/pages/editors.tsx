@@ -6,6 +6,7 @@ import { Choice, Feedback, Loading, Modal, Panel, TextField } from '@/components
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { SwitchSetting } from '@/components/switch-setting';
+import { OtpInput } from '@/components/otp-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, FieldLabel } from '@/components/ui/field';
 
@@ -47,12 +48,12 @@ export function SettingsEditor({ profiles }: { profiles: Profile[] }) {
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => request<SafeSettings>('admin/settings') });
   if (settings.isPending) return <Loading/>;
   if (settings.error) return <Feedback error={settings.error.message}/>;
-  return <SettingsForm key={settings.dataUpdatedAt} initial={settings.data} profiles={profiles}/>;
+  return <SettingsForm initial={settings.data} profiles={profiles}/>;
 }
 function SettingsForm({ initial, profiles }: { initial: SafeSettings; profiles: Profile[] }) {
   const [values, setValues] = useState<Record<string, unknown>>({ ...initial });
   const [rotation, setRotation] = useState<{ secret: string; qr: string }>();
   const command = useCommand();
   return <><Form id="settings-form" onSubmit={async event => { event.preventDefault(); const payload = { ...values }; delete payload.secrets; for (const key of ['pveTokenSecret', 'gostPassword', 'relayPassword']) if (payload[key] === '') delete payload[key]; await command.run('admin/settings', payload, 'PUT'); }} className="flex flex-col gap-5"><Feedback {...command}/>{groups.map((group, index) => <Panel key={group.title} title={group.title}><div className="form-grid p-6">{index === 0 && <Choice label="默认资源配置（必须）" value={String(values.defaultProfileId || '')} onChange={v => setValues({ ...values, defaultProfileId: v || null })} items={[{ value: '', label: '请选择默认配置' }, ...profiles.filter(p => p.enabled && p.published).map(p => ({ value: p.id, label: p.name }))]}/>} {group.fields.filter(([, , type]) => type !== 'boolean').map(([key, label, type]) => type === 'textarea' ? <Field key={key} className="col-span-full"><FieldLabel>{label}</FieldLabel><Textarea rows={4} className="mono text-xs" value={String(values[key] || '')} onChange={e => setValues({ ...values, [key]: e.target.value })}/></Field> : <TextField key={key} label={label} type={type === 'password' ? 'password' : type === 'number' ? 'number' : 'text'} value={type === 'array' ? (values[key] as number[]).join(', ') : String(values[key] ?? '')} hint={type === 'password' && initial.secrets[key as keyof SafeSettings['secrets']] ? '已配置；留空保留现有凭据' : undefined} onChange={e => setValues({ ...values, [key]: type === 'number' ? Number(e.target.value) : type === 'array' ? e.target.value.split(/[\s,]+/).filter(Boolean).map(Number) : e.target.value })}/>)}</div>{group.fields.some(([, , type]) => type === 'boolean') && <section aria-label="开关设置" className="grid gap-3 border-t p-6">{group.fields.filter(([, , type]) => type === 'boolean').map(([key, label]) => <SwitchSetting key={key} label={label} description={key === 'registrationOpen' ? '开放后，名单内学生可以认领并创建计算资源。' : '未被指定配置的学生可以自行选择已发布的规格。'} checked={!!values[key]} onChange={v => setValues({ ...values, [key]: v })}/>)}</section>}</Panel>)}<div className="sticky-actions"><span>配置保存在本机数据库中</span><Button type="submit" loading={command.pending}>保存平台设置</Button></div></Form><Panel title="管理员身份验证" detail="重新绑定会撤销已有管理员会话；请保存新密钥。"><Form className="flex flex-col gap-4 p-6 max-w-lg" onSubmit={async e => { e.preventDefault(); const code = new FormData(e.currentTarget).get('code'); if (rotation) { if (await command.run('auth/rotate-complete', { code })) setRotation(undefined); } else { const result = await command.run<{ secret: string; qr: string }>('auth/rotate-begin', { code }); if (result) setRotation(result); } }}>
-  {rotation && <div className="setup-secret"><img src={rotation.qr} alt="新的 TOTP 二维码"/><code>{rotation.secret}</code></div>}<TextField name="code" label={rotation ? '新密钥验证码' : '当前验证码'} pattern="[0-9]{6}" required inputMode="numeric"/><Button type="submit" loading={command.pending}>{rotation ? '确认新密钥' : '重新绑定 TOTP'}</Button></Form></Panel></>;
+  {rotation && <div className="setup-secret"><img src={rotation.qr} alt="新的 TOTP 二维码"/><code>{rotation.secret}</code></div>}<OtpInput key={rotation ? 'new' : 'current'} label={rotation ? '新密钥验证码' : '当前验证码'} disabled={command.pending} error={command.error}/><Button type="submit" loading={command.pending}>{rotation ? '确认新密钥' : '重新绑定 TOTP'}</Button></Form></Panel></>;
 }

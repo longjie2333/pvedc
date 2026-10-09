@@ -6,8 +6,7 @@ test('administrator login, roster, network, profiles and responsive settings', a
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: '管理员入口' }).click();
-  await page.getByLabel('动态验证码').fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
-  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
   await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '添加学生' }).click();
@@ -37,7 +36,17 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await expect(page.getByRole('heading', { name: '站点与分配策略' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-settings.png', fullPage: true });
+  const rotation = page.waitForResponse(response => response.url().endsWith('/api/auth/rotate-begin'));
+  await page.getByRole('textbox', { name: '当前验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', epoch: Math.floor(Date.now() / 1000) + 30 }));
+  const rotated = await (await rotation).json();
+  await expect(page.getByAltText('新的 TOTP 二维码')).toBeVisible();
+  const newCode = page.getByRole('textbox', { name: '新密钥验证码', exact: true });
+  await expect(newCode).toHaveValue('');
+  await newCode.fill(generateSync({ secret: rotated.secret }));
+  await expect(page.getByAltText('新的 TOTP 二维码')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: '当前验证码', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
