@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { Task } from '../../shared/schema';
 import { request } from '@/lib/api';
-import { taskNames } from '@/lib/feedback';
+import { taskNames } from '../../shared/activity';
 import { toastManager } from './ui/toast';
 
 type WatchedTask = { id: string; scope: 'admin' | 'me' };

@@ -31,10 +31,6 @@ export function taskForActor(id: string, actor: Actor): Task {
   ensure(row && (actor.role === 'admin' || row.student_id === actor.sub), 404, '任务不存在');
   return taskView(row);
 }
-export function tasks(studentId?: string): Task[] {
-  const rows = studentId ? getDb().prepare('SELECT * FROM jobs WHERE student_id=? ORDER BY created_at DESC LIMIT 100').all(studentId) : getDb().prepare('SELECT * FROM jobs ORDER BY created_at DESC LIMIT 100').all();
-  return (rows as JobRow[]).map(taskView);
-}
 export function forwards(studentId?: string): Forward[] {
   const rows = (studentId ? getDb().prepare('SELECT * FROM forwards WHERE student_id=?').all(studentId) : getDb().prepare('SELECT * FROM forwards').all()) as { id: string; student_id: string; resource_id: string; protocol: 'tcp' | 'udp'; target_port: number; public_port: number; note: string; enabled: number; state: string; error: string | null }[];
   return rows.map(r => ({ id: r.id, studentId: r.student_id, resourceId: r.resource_id, protocol: r.protocol, targetPort: r.target_port, publicPort: r.public_port, note: r.note, enabled: !!r.enabled, state: r.state, error: r.error }));

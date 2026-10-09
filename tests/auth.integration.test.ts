@@ -138,6 +138,20 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/tasks/other-task', undefined, adminCookie)).response.status).toBe(200);
     expect((await call('admin/tasks/other-task')).response.status).toBe(401);
   });
+  it('serves paged activities and removes task arrays from overviews', async () => {
+    const insert = db.prepare("INSERT INTO jobs(id,type,student_id,state,step,payload,created_at,updated_at) VALUES(?,'start',?,'succeeded','complete','{}',1,1)");
+    for (let index = 0; index < 45; index++) insert.run('page-task-' + index, index % 2 ? 'a00001234' : 'a00001235');
+    const first = await call('admin/tasks?page=1&pageSize=20', undefined, adminCookie);
+    const second = await call('admin/tasks?page=2&pageSize=20', undefined, adminCookie);
+    expect(first.json.items).toHaveLength(20); expect(first.json.total).toBe(47);
+    expect(second.json.items).toHaveLength(20);
+    const own = await call('me/tasks?studentId=a00001235&pageSize=100', undefined, studentCookie);
+    expect(own.json.items.every((item: { studentId: string }) => item.studentId === 'a00001234')).toBe(true);
+    expect((await call('admin/audit', undefined, studentCookie)).response.status).toBe(403);
+    expect((await call('admin/tasks?pageSize=500', undefined, adminCookie)).response.status).toBe(400);
+    expect((await call('admin/overview', undefined, adminCookie)).json).not.toHaveProperty('tasks');
+    expect((await call('me/overview', undefined, studentCookie)).json).not.toHaveProperty('tasks');
+  });
   it('revokes disabled accounts and logout sessions immediately', async () => {
     await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);

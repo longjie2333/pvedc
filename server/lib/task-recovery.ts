@@ -1,6 +1,7 @@
 import { getDb, now, audit } from './db';
 import type { FullJobRow } from './records';
 import type { Actor } from '../../shared/schema';
+import { taskNames } from '../../shared/activity';
 import { containerExists, guestConfig, nodePath, ownershipTag, pve, taskStatus } from './pve';
 import { resources } from './records';
 import { AppError, ensure } from './errors';
@@ -8,6 +9,7 @@ import { AppError, ensure } from './errors';
 export async function retryTask(user: Actor, id: string) {
   const job = getDb().prepare('SELECT * FROM jobs WHERE id=?').get(id) as FullJobRow | undefined;
   ensure(job && (user.role === 'admin' || user.sub === job.student_id), 404, '任务不存在');
+  ensure(Object.hasOwn(taskNames, job.type), 409, '此历史任务类型已不支持，仅保留记录');
   ensure(['failed', 'attention'].includes(job.state), 409, '任务当前不能重试');
   let step = job.step, upid = job.upid;
   const resource = resources().find(r => r.id === job.resource_id);

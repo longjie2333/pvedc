@@ -30,8 +30,7 @@ async function login() {
 async function job(id, timeout = 600000) {
   const deadline = Date.now() + timeout; let last = '';
   while (Date.now() < deadline) {
-    const overview = (await api('admin/overview')).value;
-    const task = overview.tasks.find(t => t.id === id);
+    const task = (await api('admin/tasks/' + id)).value;
     assert(task, 'job not found');
     if (task.state + task.step !== last) { log('task', { id, state: task.state, step: task.step, error: task.error }); last = task.state + task.step; }
     if (task.state === 'succeeded') return task;
@@ -91,7 +90,7 @@ if (stage === 'retry') {
 }
 if (stage === 'overview') {
   const overview = (await api('admin/overview')).value;
-  log('overview', { networks: overview.networks, resources: overview.resources, tasks: overview.tasks });
+  log('overview', { networks: overview.networks, resources: overview.resources, taskCounts: overview.taskCounts });
 }
 if (stage === 'create') {
   const overview = (await api('admin/overview')).value;

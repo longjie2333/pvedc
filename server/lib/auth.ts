@@ -78,4 +78,3 @@ export function checkAdminOtp(code: string) {
     setMeta('totp_last_step', String('timeStep' in result ? result.timeStep : Math.floor(now() / 30)));
   }).immediate();
 }
-

@@ -25,6 +25,11 @@ export function openDatabase(path: string) {
     'CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL);',
     'CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT, detail TEXT, created_at INTEGER NOT NULL);',
     'CREATE INDEX IF NOT EXISTS jobs_state ON jobs(state, created_at);',
+    'CREATE INDEX IF NOT EXISTS jobs_created ON jobs(created_at DESC,id DESC);',
+    'CREATE INDEX IF NOT EXISTS jobs_student_created ON jobs(student_id,created_at DESC,id DESC);',
+    'CREATE INDEX IF NOT EXISTS audit_created ON audit(created_at DESC,id DESC);',
+    'CREATE INDEX IF NOT EXISTS audit_actor_created ON audit(actor,created_at DESC);',
+    'CREATE INDEX IF NOT EXISTS audit_action_created ON audit(action,created_at DESC);',
   ].join('\n'));
   const version = db.prepare('SELECT value FROM meta WHERE key=?').get('schema_version') as { value: string } | undefined;
   if (version && version.value !== '1') { db.close(); throw new Error('不支持此数据库版本，请使用匹配的应用版本'); }

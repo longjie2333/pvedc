@@ -1,12 +1,5 @@
 import { toastManager } from '@/components/ui/toast';
 
-export const taskNames: Record<string, string> = {
-  create: '创建容器', rebuild: '重建容器', reclaim: '回收资源', password: '修改密码',
-  start: '启动', shutdown: '关机', reboot: '重启', 'student-delete': '删除学生',
-  'template-download': '下载模板', 'forward-sync': '应用转发', 'gost-configure': '应用 gost 配置',
-  'gost-api-update': '同步 gost API', 'network-apply': '应用网络', 'network-remove': '移除网络',
-};
-
 export async function copyText(value: string, label = '内容') {
   try {
     await navigator.clipboard.writeText(value);

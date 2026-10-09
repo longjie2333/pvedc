@@ -16,7 +16,7 @@ test('concurrent protected requests share one refresh and retry once', async ({ 
     const name = new URL(route.request().url()).pathname.split('/').pop()!;
     attempts.set(name, (attempts.get(name) || 0) + 1);
     if (!authorized) return route.fulfill({ status: 401, json: { error: '需要登录', code: 'AUTH_REQUIRED' } });
-    const json = name === 'overview' ? { students: [], resources: [], tasks: [], profiles: [], networks: [], forwards: [] }
+    const json = name === 'overview' ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] }
       : name === 'settings' ? { registrationOpen: false } : [];
     return route.fulfill({ json });
   });
@@ -56,7 +56,7 @@ test('refreshes proactively before the access deadline', async ({ page }) => {
   await page.route('**/api/auth/session', route => route.fulfill({ json: session() }));
   await page.route('**/api/auth/refresh', route => { refreshes++; return route.fulfill({ json: session() }); });
   await page.route('**/api/admin/**', route => route.fulfill({ json: route.request().url().endsWith('/overview')
-    ? { students: [], resources: [], tasks: [], profiles: [], networks: [], forwards: [] } : {} }));
+    ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] } : {} }));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
   expect(refreshes).toBe(0);

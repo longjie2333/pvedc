@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { api, actor, body } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { forwards, networks, profiles, resources, students, tasks, taskForActor } from '../../lib/records';
+import { forwards, networks, profiles, resources, students, taskForActor } from '../../lib/records';
 import { getSettings, safeSettings, saveSettings } from '../../lib/settings';
 import { audit, getDb } from '../../lib/db';
 import { exportStudents, importStudents, removeCatalog, resetClaim, saveNetwork, saveProfile, saveStudents, validateSettings } from '../../lib/catalog';
@@ -10,18 +10,19 @@ import { changeForward, createForward, enqueue, resourceAction } from '../../lib
 import { allCapacities, inventory } from '../../lib/inventory';
 import { nodePath, pve, type PveTemplate } from '../../lib/pve';
 import { history, monitor } from '../../lib/monitor';
+import { taskPage, auditPage } from '../../lib/activity';
 import { cancelNetworkTask, retryTask } from '../../lib/task-recovery';
 
 export default api(async event => {
   const user = await actor(event, 'admin');
   const [, , , action, id, operation] = event.url.pathname.split('/');
   if (event.req.method === 'GET') {
-    if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), tasks: tasks(), forwards: forwards() };
-    if (action === 'tasks' && id) return taskForActor(id, user);
+    if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
+    if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'settings') return safeSettings();
     if (action === 'capacities') return allCapacities();
     if (action === 'inventory') return inventory();
-    if (action === 'audit') return getDb().prepare('SELECT * FROM audit ORDER BY id DESC LIMIT 200').all();
+    if (action === 'audit') return id === 'actions' ? getDb().prepare('SELECT DISTINCT action FROM audit ORDER BY action').all() : auditPage(Object.fromEntries(event.url.searchParams));
     if (action === 'students' && id === 'export') return new Response(exportStudents(), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="students.csv"' } });
     if (action === 'templates') {
       const catalog = (await pve<PveTemplate[]>(nodePath() + '/aplinfo')).filter(t => /^(ubuntu|debian)-.*-standard_.*_amd64\.tar\.(zst|xz|gz)$/.test(t.template));
