@@ -51,15 +51,32 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('setup/complete', { code: '000000' }, setupCookie)).response.status).toBe(401);
     const result = await call('setup/complete', { code: generateSync({ secret }) }, setupCookie);
     expect(result.response.status).toBe(200); adminCookie = result.cookie;
-    const claims = decodeJwt(adminCookie.split('=')[1]);
+    const claims = decodeJwt(adminCookie.split('; ')[0].split('=')[1]);
     expect(claims.exp! - claims.iat!).toBe(3600);
     expect(result.response.headers.getSetCookie().join('')).toContain('HttpOnly');
+    const refreshCookie = result.response.headers.getSetCookie().find(cookie => cookie.startsWith('pvedc_refresh='))!;
+    expect(refreshCookie).toContain('Path=/api/auth');
+    expect(refreshCookie).toContain('SameSite=Strict');
+    const refreshClaims = decodeJwt(refreshCookie.split(';')[0].split('=')[1]);
+    expect(refreshClaims.exp! - refreshClaims.iat!).toBe(7 * 86400);
     expect((await call('setup/status')).json.initialized).toBe(true);
     expect((await call('setup/begin', {}, setupCookie)).response.status).toBe(409);
   });
   it('rejects replay of the setup OTP and unauthenticated admin requests', async () => {
     expect((await call('auth/admin', { code: generateSync({ secret }) })).response.status).toBe(401);
     expect((await call('admin/overview')).response.status).toBe(401);
+  });
+  it('refreshes from an HttpOnly cookie and rejects cross-origin refresh', async () => {
+    const before = adminCookie;
+    expect((await call('auth/refresh', {}, before, 'https://untrusted.invalid')).response.status).toBe(403);
+    const refreshed = await call('auth/refresh', {}, before);
+    expect(refreshed.response.status).toBe(200);
+    adminCookie = refreshed.cookie;
+    expect(adminCookie).not.toBe(before);
+    expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(200);
+    const refreshOnly = adminCookie.split('; ').find(cookie => cookie.startsWith('pvedc_refresh='))!;
+    expect((await call('auth/session', undefined, refreshOnly)).json.code).toBe('AUTH_REQUIRED');
+    expect(JSON.stringify(refreshed.json)).not.toContain(refreshOnly.split('=')[1]);
   });
   it('imports rosters transactionally and preserves leading zeros', async () => {
     const result = await call('admin/students/import', { csv: '学号,姓名,班级\na00001234,测试同学,测试班\na00001235,第二位同学,测试班' }, adminCookie);
@@ -94,6 +111,7 @@ describe('real HTTP authentication and authorization', () => {
     expect(complete.response.status).toBe(200);
     adminCookie = complete.cookie; secret = begin.json.secret;
     expect((await call('admin/overview', undefined, oldCookie)).response.status).toBe(401);
+    expect((await call('auth/refresh', {}, oldCookie)).response.status).toBe(401);
     expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(200);
   });
   it('preserves local administration after configuring a public HTTPS origin', async () => {
@@ -123,7 +141,9 @@ describe('real HTTP authentication and authorization', () => {
   it('revokes disabled accounts and logout sessions immediately', async () => {
     await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);
+    expect((await call('auth/refresh', {}, studentCookie)).response.status).toBe(401);
     expect((await call('auth/logout', {}, adminCookie)).response.status).toBe(200);
     expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(401);
+    expect((await call('auth/refresh', {}, adminCookie)).response.status).toBe(401);
   });
 });

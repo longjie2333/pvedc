@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 管理员使用 TOTP 登录；首次访问生成文本密钥和二维码，JWT 会话固定一小时。
+- 管理员使用 TOTP 登录；首次访问生成文本密钥和二维码，使用访问/刷新双 JWT：访问有效一小时，七天内自动续期。
 - 学生名单、CSV / 表格粘贴导入、指定配置、学号认领和密码登录。
 - 多套资源规格、默认配置、管理员控制的学生自选模式。
 - PVE 原生 LXC 创建：学号主机名、root 密码、静态 IPv4、Ubuntu / Debian。
@@ -89,11 +89,11 @@ bash /opt/pvedc/deploy/install.sh
 | `PDC_GOST_API` / `PDC_GOST_USER` / `PDC_GOST_PASSWORD` | 本机 gost API |
 | `PDC_PUBLIC_ORIGIN` | 公网 HTTPS 入口，例如 `https://compute.example.edu` |
 
-平台密码使用 Argon2id；连接凭据和临时任务密码使用 AES-256-GCM。JWT 保存在 HttpOnly Cookie 中，同时通过数据库会话实现退出、禁用和改密后的撤销。
+平台密码使用 Argon2id；连接凭据和临时任务密码使用 AES-256-GCM。访问和刷新 JWT 分别保存在 HttpOnly Cookie 中；刷新 token 每次轮换，登录最长七天。通过数据库会话实现退出、禁用、改密和 TOTP 重绑后的即时撤销；过期刷新 token 的重用会撤销对应会话。
 
 完整配置导入在单个事务内完成，只运行一次，不执行宿主网络变更。首次导入保持 `registrationOpen:false`，管理员在 Web 应用网络后再开放申请。初始设置优先级为：安装器文件 → `PDC_INITIAL_SETTINGS` → `PDC_INITIAL_CONFIG.settings` → 单项环境变量。
 
-默认一人一台 LXC、IPv4、学生及管理员一小时会话、每人五条转发、CPU 不超分。默认保留宿主 2 CPU、4096 MiB 内存及每个使用存储 10 GiB，可通过 Web 调整。
+默认一人一台 LXC、IPv4、学生及管理员七天登录期限（一小时访问 token）、每人五条转发、CPU 不超分。默认保留宿主 2 CPU、4096 MiB 内存及每个使用存储 10 GiB，可通过 Web 调整。
 
 ## 分配与恢复规则
 

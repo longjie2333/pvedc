@@ -1,7 +1,8 @@
+import { issueSession } from '../../lib/sessions';
 import { z } from 'zod';
-import { api, body, clientIp, sessionCookie } from '../../lib/http';
+import { api, body, clientIp, sessionCookies } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { initialized, issueSession, rateLimit } from '../../lib/auth';
+import { initialized, rateLimit } from '../../lib/auth';
 import { getSettings } from '../../lib/settings';
 import { profiles } from '../../lib/records';
 import { password, studentId } from '../../../shared/schema';
@@ -26,7 +27,7 @@ export default api(async event => {
     const input = await body(event, z.object({ studentId, password, profileId: z.string().optional() }));
     const result = await allocate(input.studentId, input.password, input.profileId, true);
     const session = await issueSession('student', input.studentId);
-    sessionCookie(event, session.token);
+    sessionCookies(event, session);
     return { ...result, actor: session.actor };
   }
   ensure(false, 404, '接口不存在');

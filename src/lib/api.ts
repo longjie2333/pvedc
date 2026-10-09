@@ -3,11 +3,37 @@ import { useQueryClient } from '@tanstack/react-query';
 import { commandFeedback } from './feedback';
 import { toastManager } from '@/components/ui/toast';
 
+let refreshing: Promise<boolean> | undefined;
+
+export function refreshBrowserSession(): Promise<boolean> {
+  refreshing ??= (async () => {
+    const response = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const value = await response.json();
+    if (response.ok) {
+      window.dispatchEvent(new CustomEvent('pvedc:session-refreshed', { detail: value }));
+      return true;
+    }
+    if (response.status !== 401) throw new Error(value.error || '登录续期暂时不可用');
+    window.dispatchEvent(new Event('pvedc:logout'));
+    window.dispatchEvent(new Event('pvedc:unauthorized'));
+    return false;
+  })().finally(() => { refreshing = undefined; });
+  return refreshing;
+}
+
 export async function request<T>(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST', format: 'json' | 'blob' = 'json'): Promise<T> {
-  const response = await fetch('/api/' + path, { method, credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-  const value = response.ok && format === 'blob' ? await response.blob() : await response.json();
-  if (!response.ok) { if (response.status === 401) window.dispatchEvent(new Event('pvedc:unauthorized')); throw new Error(value.error || '请求失败'); }
-  return value as T;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch('/api/' + path, { method, credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const value = response.ok && format === 'blob' ? await response.blob() : await response.json();
+    if (response.ok) return value as T;
+    if (!attempt && response.status === 401 && value.code === 'AUTH_REQUIRED') {
+      const refreshed = await refreshBrowserSession();
+      if (refreshed || path === 'auth/session') continue;
+    }
+    if (response.status === 401 && ['AUTH_REQUIRED', 'SESSION_EXPIRED'].includes(value.code)) window.dispatchEvent(new Event('pvedc:unauthorized'));
+    throw new Error(value.error || '请求失败');
+  }
+  throw new Error('登录已失效，请重新登录');
 }
 export async function downloadFile(path: string, filename: string) {
   try {

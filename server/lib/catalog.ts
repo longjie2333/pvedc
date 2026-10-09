@@ -6,7 +6,7 @@ import { audit, getDb, now } from './db';
 import { ensure } from './errors';
 import { availableIps, ipNumber, validateNetwork } from './allocation';
 import { networks, profiles, resources, students } from './records';
-import { revokeSubject } from './auth';
+import { revokeSubject } from './sessions';
 import { getSettings, saveSettings } from './settings';
 
 const networkHasTask = (id: string) => !!getDb().prepare("SELECT id FROM jobs WHERE type IN ('network-apply','network-remove') AND state IN ('queued','running','attention') AND json_extract(payload,'$.networkId')=?").get(id);

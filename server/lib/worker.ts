@@ -4,7 +4,8 @@ import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pv
 import { AppError, ensure } from './errors';
 import { unseal } from './crypto';
 import { helper } from './helper';
-import { hashPassword, revokeSubject } from './auth';
+import { hashPassword } from './auth';
+import { revokeSubject } from './sessions';
 import { configureGost, refreshForwardStatus, syncForwards } from './gost';
 import { applyNetwork, removeNetwork } from './network';
 

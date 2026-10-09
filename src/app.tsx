@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tan
 import { BrowserRouter, NavLink, Route, Routes, Navigate } from 'react-router-dom';
 import { Activity, ArrowUpRight, Command, HardDrive, LayoutDashboard, ListChecks, LogOut, Network, Settings2, ShieldCheck, Users, PanelLeft } from 'lucide-react';
 import type { Actor } from '../shared/schema';
-import { request, useCommand } from './lib/api';
+import { refreshBrowserSession, request, useCommand } from './lib/api';
 import { Feedback, Loading } from './components/common';
 import { Button } from './components/ui/button';
 import { AuthPage } from './pages/auth';
@@ -22,8 +22,18 @@ const navigation = [
 function Application() {
   const cache = useQueryClient(), command = useCommand();
   const [menu, setMenu] = useState(false);
-  const session = useQuery({ queryKey: ['session'], queryFn: () => request<{ actor: Actor | null; initialized: boolean; title: string }>('auth/session'), refetchInterval: 60000 });
+  const session = useQuery({ queryKey: ['session'], queryFn: () => request<{ actor: Actor | null; initialized: boolean; title: string; expiresAt?: number; refreshExpiresAt?: number }>('auth/session'), refetchInterval: 60000 });
   useEffect(() => { const listener = () => void cache.invalidateQueries({ queryKey: ['session'] }); window.addEventListener('pvedc:unauthorized', listener); return () => window.removeEventListener('pvedc:unauthorized', listener); }, [cache]);
+  useEffect(() => {
+    const updated = (event: Event) => cache.setQueryData(['session'], (old: Record<string, unknown> | undefined) => ({ ...old, ...(event as CustomEvent).detail }));
+    window.addEventListener('pvedc:session-refreshed', updated);
+    return () => window.removeEventListener('pvedc:session-refreshed', updated);
+  }, [cache]);
+  useEffect(() => {
+    if (!session.data?.actor || !session.data.expiresAt) return;
+    const timer = setTimeout(() => { void refreshBrowserSession().catch(() => { /* The next authenticated request can retry after a temporary outage. */ }); }, Math.max(0, session.data.expiresAt * 1000 - Date.now() - 60000));
+    return () => clearTimeout(timer);
+  }, [session.data?.actor?.sessionId, session.data?.expiresAt]);
   if (session.isPending) return <Loading/>;
   if (session.error) return <Feedback error={session.error.message}/>;
   if (!session.data.actor) return <AuthPage initialized={session.data.initialized} title={session.data.title}/>;
