@@ -41,7 +41,7 @@ export default api(async event => {
       const s = getSettings();
       const host = s.publicOrigin ? new URL(s.publicOrigin).hostname : 'example.invalid';
       ensure(/^[a-zA-Z0-9.-]+$/.test(host), 400, '公网域名无效');
-      return { caddy: s.publicOrigin ? host + ' {\n  reverse_proxy ' + s.webBindHost + ':' + s.webTunnelPort + '\n}\n' : '# 在平台设置中填写公网 HTTPS 地址后生成 Caddy 配置。',
+      return { caddy: s.publicOrigin ? host + ' {\n  reverse_proxy ' + s.webBindHost + ':' + s.webTunnelPort + '\n}\n' : '# 在公网转发页面填写公网 HTTPS 地址后生成 Caddy 配置。',
         proxy: { scheme: 'http', host: s.webBindHost, port: s.webTunnelPort, websocketSupport: true },
         relay: { services: [{ name: 'pvedc-relay', addr: ':' + s.relayPort, handler: { type: 'relay', auth: { username: s.relayUser, password: '<填写 Relay 密码>' }, metadata: { bind: true } }, listener: { type: 'tls', tls: { certFile: '/etc/gost/server.crt', keyFile: '/etc/gost/server.key' } } }] },
         notes: '公网服务器运行 Relay + TLS 并开放 Relay 端口及学生端口范围。Web 通道绑定 ' + s.webBindHost + '，应仅供反向代理访问。',

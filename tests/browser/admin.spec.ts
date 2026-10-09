@@ -35,6 +35,18 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.screenshot({ path: 'test-results/admin-profiles.png', fullPage: true });
   await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await expect(page.getByRole('heading', { name: '站点与分配策略' })).toBeVisible();
+  await expect(page.getByLabel('API 地址', { exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: '公网转发', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '本机 gost API', exact: true })).toBeVisible();
+  await expect(page.getByLabel('PVE API 地址', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Relay 主机', { exact: true }).fill('relay.example.test');
+  const saved = page.waitForRequest(request => request.url().endsWith('/api/admin/settings') && request.method() === 'PUT');
+  await page.getByRole('button', { name: '保存公网配置', exact: true }).click();
+  const patch = (await saved).postDataJSON();
+  expect(patch.relayHost).toBe('relay.example.test');
+  expect(patch).not.toHaveProperty('pveUrl');
+  expect(patch).not.toHaveProperty('title');
+  await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

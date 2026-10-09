@@ -1,14 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { Network, Profile, SafeSettings, Student } from '../../shared/schema';
-import { request, useCommand } from '@/lib/api';
-import { Choice, Feedback, Loading, Modal, Panel, TextField } from '@/components/common';
+import type { Network, Profile, Student } from '../../shared/schema';
+import { useCommand } from '@/lib/api';
+import { Choice, Feedback, Modal, TextField } from '@/components/common';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { SwitchSetting } from '@/components/switch-setting';
-import { OtpInput } from '@/components/otp-input';
-import { Textarea } from '@/components/ui/textarea';
-import { Field, FieldLabel } from '@/components/ui/field';
 
 export function CatalogEditor({ kind, item, profiles, networks, onClose }: { kind: 'students' | 'profiles' | 'networks'; item?: Student | Profile | Network; profiles: Profile[]; networks: Network[]; onClose: () => void }) {
   const command = useCommand();
@@ -34,26 +31,4 @@ export function CatalogEditor({ kind, item, profiles, networks, onClose }: { kin
   {kind === 'networks' && <>{fields('name', '网络名称')}<Choice label="网络模式" value={choice.mode} onChange={v => setChoice({ ...choice, mode: v })} items={[{ value: 'nat', label: '独立私网 + NAT' }, { value: 'bridge', label: '桥接现有网络' }]}/>{fields('bridge', choice.mode === 'nat' ? '新建 VNet 名称' : '现有网桥名称', choice.mode === 'nat' ? 'dcnet' : 'vmbr0')}{fields('cidr', '子网 CIDR', '172.20.0.0/24')}{fields('gateway', '网关', '172.20.0.1')}{fields('start', '起始 IP', '172.20.0.10')}{fields('end', '结束 IP', '172.20.0.200')}<TextField label="DNS（逗号分隔）" name="dns" required defaultValue={(initial?.dns as string[] | undefined)?.join(', ') || '223.5.5.5, 1.1.1.1'}/><TextField label="排除 IP（逗号分隔）" name="excluded" defaultValue={(initial?.excluded as string[] | undefined)?.join(', ') || ''}/>{choice.mode === 'bridge' && fields('vlan', 'VLAN（可留空）', '', 'number', false)}</>}
   </div>{kind !== 'networks' && <section aria-label="开关设置" className="grid gap-3"><SwitchSetting label="启用" description={kind === 'students' ? '允许此学生登录和认领资源。' : '允许此规格用于后续资源分配。'} checked={flags.enabled} onChange={v => setFlags({ ...flags, enabled: v })}/>{kind === 'profiles' && <><SwitchSetting label="公开发布" description="将此规格加入学生可选配置。" checked={flags.published} onChange={v => setFlags({ ...flags, published: v })}/><SwitchSetting label="允许容器嵌套" description="允许容器内运行 Docker 等嵌套工作负载。" checked={flags.nesting} onChange={v => setFlags({ ...flags, nesting: v })}/></>}</section>}
   </Form></Modal>;
-}
-
-const groups: { title: string; fields: [string, string, string?][] }[] = [
-  { title: '站点与分配策略', fields: [['title', '平台名称'], ['publicOrigin', '公网 HTTPS 地址'], ['registrationOpen', '开放学生认领与创建', 'boolean'], ['selfSelection', '允许学生自选配置', 'boolean']] },
-  { title: 'PVE 连接', fields: [['pveUrl', 'PVE API 地址'], ['pveNode', '节点名称'], ['pveTokenId', 'API Token ID'], ['pveTokenSecret', 'API Token 密钥', 'password'], ['pveCa', 'PVE CA 证书 PEM', 'textarea']] },
-  { title: '容量与编号', fields: [['cpuOvercommit', 'CPU 超分比例', 'number'], ['reserveCpu', '宿主保留 CPU', 'number'], ['reserveMemory', '宿主保留内存 MiB', 'number'], ['reserveDisk', '存储保留空间 GiB', 'number'], ['vmidStart', 'VMID 起始值', 'number'], ['vmidEnd', 'VMID 结束值', 'number']] },
-  { title: '本机 gost API', fields: [['gostApi', 'API 地址'], ['gostUser', 'API 用户名'], ['gostPassword', 'API 密码', 'password']] },
-  { title: '公网 Relay + TLS', fields: [['relayHost', 'Relay 主机'], ['relayPort', 'Relay 端口', 'number'], ['relayUser', 'Relay 用户名'], ['relayPassword', 'Relay 密码', 'password'], ['relayServerName', 'TLS 服务名'], ['relayCa', '自定义 CA 证书 PEM（可选）', 'textarea'], ['publicHost', '学生使用的公网主机名']] },
-  { title: '公网端口与 Web 通道', fields: [['portStart', '端口池起始值', 'number'], ['portEnd', '端口池结束值', 'number'], ['reservedPorts', '保留端口（逗号分隔）', 'array'], ['forwardQuota', '每人转发规则上限', 'number'], ['webBindHost', '公网 Web 绑定地址（反代在 Docker 中时填网关地址）'], ['webTunnelPort', '公网 Web 通道端口', 'number'], ['webLocalPort', 'PVE 本机 Web 端口', 'number']] },
-];
-export function SettingsEditor({ profiles }: { profiles: Profile[] }) {
-  const settings = useQuery({ queryKey: ['settings'], queryFn: () => request<SafeSettings>('admin/settings') });
-  if (settings.isPending) return <Loading/>;
-  if (settings.error) return <Feedback error={settings.error.message}/>;
-  return <SettingsForm initial={settings.data} profiles={profiles}/>;
-}
-function SettingsForm({ initial, profiles }: { initial: SafeSettings; profiles: Profile[] }) {
-  const [values, setValues] = useState<Record<string, unknown>>({ ...initial });
-  const [rotation, setRotation] = useState<{ secret: string; qr: string }>();
-  const command = useCommand();
-  return <><Form id="settings-form" onSubmit={async event => { event.preventDefault(); const payload = { ...values }; delete payload.secrets; for (const key of ['pveTokenSecret', 'gostPassword', 'relayPassword']) if (payload[key] === '') delete payload[key]; await command.run('admin/settings', payload, 'PUT'); }} className="flex flex-col gap-5"><Feedback {...command}/>{groups.map((group, index) => <Panel key={group.title} title={group.title}><div className="form-grid p-6">{index === 0 && <Choice label="默认资源配置（必须）" value={String(values.defaultProfileId || '')} onChange={v => setValues({ ...values, defaultProfileId: v || null })} items={[{ value: '', label: '请选择默认配置' }, ...profiles.filter(p => p.enabled && p.published).map(p => ({ value: p.id, label: p.name }))]}/>} {group.fields.filter(([, , type]) => type !== 'boolean').map(([key, label, type]) => type === 'textarea' ? <Field key={key} className="col-span-full"><FieldLabel>{label}</FieldLabel><Textarea rows={4} className="mono text-xs" value={String(values[key] || '')} onChange={e => setValues({ ...values, [key]: e.target.value })}/></Field> : <TextField key={key} label={label} type={type === 'password' ? 'password' : type === 'number' ? 'number' : 'text'} value={type === 'array' ? (values[key] as number[]).join(', ') : String(values[key] ?? '')} hint={type === 'password' && initial.secrets[key as keyof SafeSettings['secrets']] ? '已配置；留空保留现有凭据' : undefined} onChange={e => setValues({ ...values, [key]: type === 'number' ? Number(e.target.value) : type === 'array' ? e.target.value.split(/[\s,]+/).filter(Boolean).map(Number) : e.target.value })}/>)}</div>{group.fields.some(([, , type]) => type === 'boolean') && <section aria-label="开关设置" className="grid gap-3 border-t p-6">{group.fields.filter(([, , type]) => type === 'boolean').map(([key, label]) => <SwitchSetting key={key} label={label} description={key === 'registrationOpen' ? '开放后，名单内学生可以认领并创建计算资源。' : '未被指定配置的学生可以自行选择已发布的规格。'} checked={!!values[key]} onChange={v => setValues({ ...values, [key]: v })}/>)}</section>}</Panel>)}<div className="sticky-actions"><span>配置保存在本机数据库中</span><Button type="submit" loading={command.pending}>保存平台设置</Button></div></Form><Panel title="管理员身份验证" detail="重新绑定会撤销已有管理员会话；请保存新密钥。"><Form className="flex flex-col gap-4 p-6 max-w-lg" onSubmit={async e => { e.preventDefault(); const code = new FormData(e.currentTarget).get('code'); if (rotation) { if (await command.run('auth/rotate-complete', { code })) setRotation(undefined); } else { const result = await command.run<{ secret: string; qr: string }>('auth/rotate-begin', { code }); if (result) setRotation(result); } }}>
-  {rotation && <div className="setup-secret"><img src={rotation.qr} alt="新的 TOTP 二维码"/><code>{rotation.secret}</code></div>}<OtpInput key={rotation ? 'new' : 'current'} label={rotation ? '新密钥验证码' : '当前验证码'} disabled={command.pending} error={command.error}/><Button type="submit" loading={command.pending}>{rotation ? '确认新密钥' : '重新绑定 TOTP'}</Button></Form></Panel></>;
 }
