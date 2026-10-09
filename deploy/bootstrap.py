@@ -8,6 +8,9 @@ import secrets
 import socket
 import subprocess
 import uuid
+import ipaddress
+import re
+from urllib.parse import urlsplit
 
 root = pathlib.Path('/etc/pvedc')
 root.mkdir(mode=0o750, exist_ok=True)
@@ -56,16 +59,38 @@ gost_cert_dir = data / '.gost'
 gost_cert_dir.mkdir(mode=0o700, exist_ok=True)
 os.chown(gost_cert_dir, account.pw_uid, account.pw_gid)
 gost_config = gost_dir / 'gost.json'
+initial_settings = json.loads(os.environ.get('PDC_INITIAL_SETTINGS') or '{}')
+initial_api = {**settings, **initial_settings}
+for env_name, field in [('PDC_GOST_API', 'gostApi'), ('PDC_GOST_USER', 'gostUser'), ('PDC_GOST_PASSWORD', 'gostPassword')]:
+    if os.environ.get(env_name):
+        initial_api[field] = os.environ[env_name]
 if gost_config.exists():
     config = json.loads(gost_config.read_text())
 else:
-    config = {'api': {'addr': '127.0.0.1:18080', 'auth': {'username': 'pvedc', 'password': secrets.token_urlsafe(32)}}, 'services': []}
+    endpoint = urlsplit(initial_api.get('gostApi', 'http://127.0.0.1:18080'))
+    if endpoint.scheme != 'http' or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
+        raise ValueError('GOST API requires a local HTTP address')
+    hostname = '127.0.0.1' if endpoint.hostname == 'localhost' else endpoint.hostname
+    address = ipaddress.IPv4Address(hostname)
+    local_addresses = {entry['local'] for interface in command('ip', '-j', '-4', 'address') for entry in interface.get('addr_info', [])}
+    if not (address.is_loopback or address.is_unspecified or hostname in local_addresses):
+        raise ValueError('GOST API address must belong to the PVE host')
+    port = endpoint.port if endpoint.port is not None else 80
+    username, password = initial_api.get('gostUser') or 'pvedc', initial_api.get('gostPassword') or secrets.token_urlsafe(32)
+    if not 1 <= port <= 65535 or not re.fullmatch(r'(/[A-Za-z0-9_-]+)*/?', endpoint.path):
+        raise ValueError('Invalid GOST API port or path prefix')
+    if not isinstance(username, str) or not isinstance(password, str) or any(char in username for char in ':\r\n\0') or any(char in password for char in '\r\n\0'):
+        raise ValueError('Invalid GOST API credentials')
+    config = {'api': {'addr': hostname + ':' + str(port), 'pathPrefix': endpoint.path.rstrip('/'),
+                      'auth': {'username': username, 'password': password}}, 'services': []}
     gost_config.write_text(json.dumps(config, indent=2))
 gost_config.chmod(0o600)
 os.chown(gost_config, account.pw_uid, account.pw_gid)
-settings.update(gostApi='http://127.0.0.1:18080', gostUser=config['api']['auth']['username'], gostPassword=config['api']['auth']['password'])
-if os.environ.get('PDC_INITIAL_SETTINGS'):
-    settings.update(json.loads(os.environ['PDC_INITIAL_SETTINGS']))
+api_addr = config['api']['addr']
+if api_addr.startswith(':'):
+    api_addr = '0.0.0.0' + api_addr
+settings.update(gostApi='http://' + api_addr + config['api'].get('pathPrefix', '').rstrip('/'), gostUser=config['api']['auth']['username'], gostPassword=config['api']['auth']['password'])
+settings.update({key: value for key, value in initial_settings.items() if key not in ('gostApi', 'gostUser', 'gostPassword')})
 bootstrap.write_text(json.dumps(settings))
 bootstrap.chmod(0o640)
 os.chown(bootstrap, 0, account.pw_gid)

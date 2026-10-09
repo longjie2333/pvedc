@@ -4,6 +4,7 @@ export const taskNames: Record<string, string> = {
   create: '创建容器', rebuild: '重建容器', reclaim: '回收资源', password: '修改密码',
   start: '启动', shutdown: '关机', reboot: '重启', 'template-download': '下载模板',
   'forward-sync': '应用转发', 'gost-configure': '应用 gost 配置',
+  'gost-api-update': '同步 gost API',
   'network-apply': '应用网络', 'network-remove': '移除网络',
 };
 export const taskStates = ['queued', 'running', 'succeeded', 'failed', 'attention'] as const;

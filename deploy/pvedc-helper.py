@@ -19,6 +19,12 @@ def main():
         raise ValueError('request too large')
     request = json.loads(raw)
     operation, vmid = request.get('operation'), request.get('vmid')
+    if operation == 'gost-restart':
+        instance = pathlib.Path('/etc/pvedc/instance-id').read_text().strip()
+        if not isinstance(request.get('instanceId'), str) or not hmac.compare_digest(instance, request['instanceId']):
+            raise ValueError('installation identity mismatch')
+        execute(['/usr/bin/systemctl', 'restart', 'pvedc-gost.service'], timeout=20)
+        return {'ok': True}
     if operation == 'sdn-lock':
         path = pathlib.Path('/etc/pve/sdn/.lock')
         if not path.exists():

@@ -10,6 +10,7 @@ import { changeForward, createForward, enqueue, resourceAction } from '../../lib
 import { allCapacities, inventory } from '../../lib/inventory';
 import { nodePath, pve, type PveTemplate } from '../../lib/pve';
 import { history, monitor } from '../../lib/monitor';
+import { queueGostApi } from '../../lib/gost-api';
 import { taskPage, auditPage } from '../../lib/activity';
 import { cancelNetworkTask, retryTask } from '../../lib/task-recovery';
 
@@ -61,6 +62,7 @@ export default api(async event => {
   ensure(['POST', 'PUT'].includes(event.req.method), 405, '请求方法不支持');
   if (action === 'settings') {
     const patch = await body(event, z.record(z.string(), z.unknown()));
+    ensure(!['gostApi', 'gostUser', 'gostPassword'].some(key => Object.hasOwn(patch, key)), 400, 'API 地址与凭据请通过保存并同步到宿主机修改');
     const settings = settingsSchema.parse({ ...getSettings(), ...patch });
     validateSettings(settings); saveSettings(settings); audit(user.sub, 'settings.save'); return safeSettings();
   }
@@ -84,6 +86,7 @@ export default api(async event => {
     ensure(catalog.some(t => t.template === input.template && /^(ubuntu|debian)-.*-standard_.*_amd64\.tar\.(zst|xz|gz)$/.test(t.template)), 400, '模板不在支持的官方系统目录中');
     return enqueue('template-download', null, null, input);
   }
+  if (action === 'gost' && id === 'api') return queueGostApi(await body(event, z.record(z.string(), z.unknown())));
   if (action === 'gost' && id === 'apply') return enqueue('gost-configure', null, null, {});
   if (action === 'tasks' && id && operation === 'retry') return retryTask(user, id);
   if (action === 'tasks' && id && operation === 'cancel') return cancelNetworkTask(user, id);

@@ -55,10 +55,22 @@ test('administrator login, roster, network, profiles and responsive settings', a
   expect(patch.relayHost).toBe('relay.example.test');
   expect(patch).not.toHaveProperty('pveUrl');
   expect(patch).not.toHaveProperty('title');
+  expect(patch).not.toHaveProperty('gostApi');
+  expect(patch).not.toHaveProperty('gostPassword');
   // Missing Relay credentials fail before any external connection is attempted.
   await page.getByRole('button', { name: '应用 gost 配置', exact: true }).click();
   await expect(page.getByRole('dialog', { name: '任务已提交', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog', { name: '应用 gost 配置需要处理', exact: true })).toBeVisible({ timeout: 10000 });
+  await page.getByLabel('API 地址', { exact: true }).fill('http://127.0.0.1:19080');
+  await page.getByLabel('API 用户名', { exact: true }).fill('new-api-user');
+  await page.getByLabel('API 密码', { exact: true }).fill('temporary-api-password');
+  const synchronized = page.waitForRequest(request => request.url().endsWith('/api/admin/gost/api'));
+  await page.getByRole('button', { name: '保存并同步到宿主机', exact: true }).click();
+  expect((await synchronized).postDataJSON()).toEqual({ gostApi: 'http://127.0.0.1:19080', gostUser: 'new-api-user', gostPassword: 'temporary-api-password' });
+  await expect(page.getByLabel('API 密码', { exact: true })).toHaveValue('');
+  // The isolated browser service has no host config; it must fail without committing the candidate.
+  await expect(page.getByRole('dialog', { name: '同步 gost API需要处理', exact: true })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText('当前生效地址：http://127.0.0.1:18080 · 用户：pvedc')).toBeVisible();
   await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);

@@ -122,6 +122,10 @@ Web 入口拓扑：
 
 TLS 认证必须启用；自签 CA 可在 Web 中填写 PEM，平台保存本机 CA 文件并交给 gost 校验。学生只填写自己的容器端口，后端固定目标为该学生的分配 IP。
 
+在“公网转发 → 本机 gost API”中修改地址、用户名和密码后，点击“保存并同步到宿主机”。后台任务保存加密恢复快照、原子更新 API 配置并重启固定的 gost 服务，验证新接口后才更新平台连接设置。失败时恢复原配置；恢复失败可在任务记录重试。留空密码保留宿主机当前密码，其他 Relay 链和服务定义不受修改。API 地址支持本机 IPv4 HTTP 地址及路径前缀，`0.0.0.0` 监听通过本机回环地址验证。
+
+管理员可按需显示或复制完整 Basic Auth 请求头；它是 Base64 编码。该值不会加入普通设置响应、审计或日志。首次安装可通过 `PDC_GOST_API`、`PDC_GOST_USER` 和 `PDC_GOST_PASSWORD` 初始化实际 gost API；已有配置在再次部署时保留。
+
 ## 运维和备份
 
 ```sh
@@ -141,5 +145,7 @@ journalctl -u pvedc -u pvedc-gost --since '30 minutes ago'
 此平台不提供 KVM、多节点调度、在线终端、快照或容器备份管理；如需备份学生系统盘，使用 PVE 自带备份功能。
 
 ## 当前验证进度
+
+本轮增量升级的功能清单与验证结果见 [docs/UPGRADE.md](docs/UPGRADE.md)。`pnpm test` 包含 TypeScript 集成测试和 Python helper 权限测试，开发机需要 Python 3；也可单独运行 `pnpm test:helper`。
 
 详细进度和尚未验证的行为记录在 `docs/IMPLEMENTATION.md`。功能存在不代表已经通过真实 PVE / 公网联调，请以该记录的验证证据为准。

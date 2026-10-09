@@ -6,7 +6,7 @@ import { copyText } from '@/lib/feedback';
 import { Choice, Feedback, Loading, Panel, TextField } from '@/components/common';
 import { SwitchSetting } from '@/components/switch-setting';
 import { OtpInput } from '@/components/otp-input';
-import { GostCredentials } from '@/components/gost-credentials';
+import { GostApiEditor } from '@/components/gost-api-editor';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -19,7 +19,6 @@ const platformGroups: SettingGroup[] = [
   { title: '容量与编号', fields: [['cpuOvercommit', 'CPU 超分比例', 'number'], ['reserveCpu', '宿主保留 CPU', 'number'], ['reserveMemory', '宿主保留内存 MiB', 'number'], ['reserveDisk', '存储保留空间 GiB', 'number'], ['vmidStart', 'VMID 起始值', 'number'], ['vmidEnd', 'VMID 结束值', 'number']] },
 ];
 const forwardingGroups: SettingGroup[] = [
-  { title: '本机 gost API', fields: [['gostApi', 'API 地址'], ['gostUser', 'API 用户名'], ['gostPassword', 'API 密码', 'password']] },
   { title: '公网 Relay + TLS', fields: [['relayHost', 'Relay 主机'], ['relayPort', 'Relay 端口', 'number'], ['relayUser', 'Relay 用户名'], ['relayPassword', 'Relay 密码', 'password'], ['relayServerName', 'TLS 服务名'], ['relayCa', '自定义 CA 证书 PEM（可选）', 'textarea'], ['publicHost', '学生使用的公网主机名']] },
   { title: '公网端口与 Web 通道', fields: [['portStart', '端口池起始值', 'number'], ['portEnd', '端口池结束值', 'number'], ['reservedPorts', '保留端口（逗号分隔）', 'array'], ['forwardQuota', '每人转发规则上限', 'number'], ['publicOrigin', '公网 HTTPS 地址'], ['webBindHost', 'Relay 上的 Web 绑定地址'], ['webTunnelPort', '公网 Web 通道端口', 'number'], ['webLocalPort', 'PVE 本机 Web 端口', 'number']] },
 ];
@@ -28,10 +27,10 @@ export function SettingsEditor({ profiles = [], section = 'platform' }: { profil
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => request<SafeSettings>('admin/settings') });
   if (settings.isPending) return <Loading/>;
   if (settings.error) return <Feedback error={settings.error.message}/>;
-  return <><SettingsForm key={section} section={section} initial={settings.data} profiles={profiles} revision={settings.dataUpdatedAt}/>{section === 'platform' && <TotpSettings/>}</>;
+  return <>{section === 'forwarding' && <GostApiEditor initial={settings.data} revision={settings.dataUpdatedAt}/>}<SettingsForm key={section} section={section} initial={settings.data} profiles={profiles}/>{section === 'platform' && <TotpSettings/>}</>;
 }
 
-function SettingsForm({ initial, profiles, section, revision }: { initial: SafeSettings; profiles: Profile[]; section: 'platform' | 'forwarding'; revision: number }) {
+function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; profiles: Profile[]; section: 'platform' | 'forwarding' }) {
   const groups = section === 'platform' ? platformGroups : forwardingGroups;
   const fields = [...groups.flatMap(group => group.fields.map(([key]) => key)), ...(section === 'platform' ? ['defaultProfileId'] : [])];
   const [values, setValues] = useState<Record<string, unknown>>({ ...initial });
@@ -54,7 +53,6 @@ function SettingsForm({ initial, profiles, section, revision }: { initial: SafeS
               hint={type === 'password' && initial.secrets[key as keyof SafeSettings['secrets']] ? '已配置；留空保留现有凭据' : undefined}
               onChange={event => setValues({ ...values, [key]: type === 'number' ? Number(event.target.value) : type === 'array' ? event.target.value.split(/[\s,]+/).filter(Boolean).map(Number) : event.target.value })}/>) }
       </div>
-      {group.title === '本机 gost API' && <GostCredentials key={revision}/>}
       {group.fields.some(([, , type]) => type === 'boolean') && <section aria-label="开关设置" className="grid gap-3 border-t p-6">
         {group.fields.filter(([, , type]) => type === 'boolean').map(([key, label]) => <SwitchSetting key={key} label={label}
           description={key === 'registrationOpen' ? '开放后，名单内学生可以认领并创建计算资源。' : '未被指定配置的学生可以自行选择已发布的规格。'}

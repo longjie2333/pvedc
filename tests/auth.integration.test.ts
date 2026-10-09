@@ -177,6 +177,19 @@ describe('real HTTP authentication and authorization', () => {
       expect(output).not.toContain(revealed.json.authorization);
     } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
   });
+  it('requires the dedicated API synchronization endpoint and encrypts pending credentials', async () => {
+    expect((await call('admin/settings', { gostUser: 'bypass-user' }, adminCookie)).response.status).toBe(400);
+    const input = { gostApi: 'http://127.0.0.1:19080', gostUser: 'new-api-user', gostPassword: 'pending-api-password' };
+    expect((await call('admin/gost/api', { ...input, gostApi: 'not-a-url' }, adminCookie)).response.status).toBe(400);
+    expect((await call('admin/gost/api', { ...input, gostApi: 'http://127.0.0.1:0' }, adminCookie)).response.status).toBe(400);
+    expect((await call('admin/gost/api', input, studentCookie)).response.status).toBe(403);
+    const result = await call('admin/gost/api', input, adminCookie);
+    expect(result.response.status).toBe(200);
+    const stored = db.prepare('SELECT payload,secret FROM jobs WHERE id=?').get(result.json.taskId) as { payload: string; secret: string };
+    expect(stored.secret).toBeTruthy();
+    expect(JSON.stringify(stored)).not.toContain(input.gostPassword);
+    expect((await call('admin/settings', undefined, adminCookie)).json.gostUser).not.toBe('new-api-user');
+  });
   it('revokes disabled accounts and logout sessions immediately', async () => {
     await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);
