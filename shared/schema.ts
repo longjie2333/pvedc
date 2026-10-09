@@ -52,7 +52,7 @@ export const settingsSchema = z.object({
   publicHost: z.string().trim().max(253).default(''),
   portStart: port.default(20000), portEnd: port.default(29999),
   reservedPorts: z.array(port).default([]), forwardQuota: z.coerce.number().int().min(0).max(100).default(5),
-  webBindHost: z.ipv4().refine(v => ipaddr.IPv4.isValid(v) && ['private', 'loopback'].includes(ipaddr.IPv4.parse(v).range()), 'Web 通道必须绑定回环或私网地址').default('127.0.0.1'), webTunnelPort: port.default(18081), webLocalPort: port.default(3000),
+  webBindHost: z.ipv4().refine(v => v === '0.0.0.0' || ['private', 'loopback'].includes(ipaddr.IPv4.parse(v).range()), 'Web 通道需绑定 0.0.0.0、回环或私网地址').default('127.0.0.1'), webTunnelPort: port.default(18081), webLocalPort: port.default(3000),
 }).refine(s => s.vmidStart <= s.vmidEnd, 'VMID 范围不正确')
   .refine(s => s.portStart <= s.portEnd, '公网端口范围不正确')
   .refine(s => !s.publicOrigin || new URL(s.publicOrigin).pathname === '/', '公网地址不能包含路径');

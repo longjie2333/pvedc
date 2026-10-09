@@ -40,11 +40,13 @@ export default api(async event => {
     if (action === 'deployment') {
       const s = getSettings();
       const host = s.publicOrigin ? new URL(s.publicOrigin).hostname : 'example.invalid';
+      const wildcard = s.webBindHost === '0.0.0.0';
+      const localTarget = wildcard ? '127.0.0.1' : s.webBindHost;
       ensure(/^[a-zA-Z0-9.-]+$/.test(host), 400, '公网域名无效');
-      return { caddy: s.publicOrigin ? host + ' {\n  reverse_proxy ' + s.webBindHost + ':' + s.webTunnelPort + '\n}\n' : '# 在公网转发页面填写公网 HTTPS 地址后生成 Caddy 配置。',
-        proxy: { scheme: 'http', host: s.webBindHost, port: s.webTunnelPort, websocketSupport: true },
+      return { caddy: s.publicOrigin ? host + ' {\n  reverse_proxy ' + localTarget + ':' + s.webTunnelPort + '\n}\n' : '# 在公网转发页面填写公网 HTTPS 地址后生成 Caddy 配置。',
+        proxy: { scheme: 'http', host: wildcard ? null : s.webBindHost, port: s.webTunnelPort, websocketSupport: true },
         relay: { services: [{ name: 'pvedc-relay', addr: ':' + s.relayPort, handler: { type: 'relay', auth: { username: s.relayUser, password: '<填写 Relay 密码>' }, metadata: { bind: true } }, listener: { type: 'tls', tls: { certFile: '/etc/gost/server.crt', keyFile: '/etc/gost/server.key' } } }] },
-        notes: '公网服务器运行 Relay + TLS 并开放 Relay 端口及学生端口范围。Web 通道绑定 ' + s.webBindHost + '，应仅供反向代理访问。',
+        notes: '公网服务器运行 Relay + TLS 并开放 Relay 端口及学生端口范围。Web 通道绑定 ' + s.webBindHost + (wildcard ? '，监听所有 IPv4 接口。宿主机上的反向代理使用 127.0.0.1；Docker 中的反向代理使用公网宿主机在对应 Docker 网络中的网关地址。' : '。反向代理应使用可到达的绑定地址连接 Web 通道。'),
       };
     }
   }
