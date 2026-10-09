@@ -11,6 +11,7 @@ import { allCapacities, inventory } from '../../lib/inventory';
 import { nodePath, pve, type PveTemplate } from '../../lib/pve';
 import { history, monitor } from '../../lib/monitor';
 import { queueGostApi } from '../../lib/gost-api';
+import { bridgeOptions, storageOptions, templateOptions, validateProfileOptions, prepareNetwork, networkInputSchema } from '../../lib/pve-options';
 import { taskPage, auditPage } from '../../lib/activity';
 import { cancelNetworkTask, retryTask } from '../../lib/task-recovery';
 
@@ -28,6 +29,12 @@ export default api(async event => {
     }
     if (action === 'capacities') return allCapacities();
     if (action === 'inventory') return inventory();
+    if (action === 'options') {
+      if (id === 'networks') return bridgeOptions();
+      if (id === 'storages') return storageOptions();
+      if (id === 'templates') return templateOptions();
+      ensure(false, 404, '选项类别不存在');
+    }
     if (action === 'audit') return id === 'actions' ? getDb().prepare('SELECT DISTINCT action FROM audit ORDER BY action').all() : auditPage(Object.fromEntries(event.url.searchParams));
     if (action === 'students' && id === 'export') return new Response(exportStudents(), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="students.csv"' } });
     if (action === 'templates') {
@@ -75,13 +82,18 @@ export default api(async event => {
     }
     return saveStudents([await body(event, studentSchema)]);
   }
-  if (action === 'profiles') return saveProfile(await body(event, profileSchema), id);
+  if (action === 'profiles') {
+    const profile = await body(event, profileSchema);
+    await validateProfileOptions(profile);
+    return saveProfile(profile, id);
+  }
   if (action === 'networks') {
     if (id && ['apply', 'remove'].includes(operation)) return enqueue(operation === 'apply' ? 'network-apply' : 'network-remove', null, null, { networkId: id });
-    return saveNetwork(await body(event, networkSchema), id);
+    return saveNetwork(await prepareNetwork(await body(event, networkInputSchema), id), id);
   }
   if (action === 'templates' && id === 'download') {
     const input = await body(event, z.object({ storage: z.string().regex(/^[a-zA-Z0-9_-]+$/), template: z.string().regex(/^(ubuntu|debian)-[a-zA-Z0-9_.-]+$/) }));
+    ensure((await storageOptions()).some(storage => storage.storage === input.storage && storage.content.includes('vztmpl')), 400, '模板存储不可用');
     const catalog = await pve<PveTemplate[]>(nodePath() + '/aplinfo');
     ensure(catalog.some(t => t.template === input.template && /^(ubuntu|debian)-.*-standard_.*_amd64\.tar\.(zst|xz|gz)$/.test(t.template)), 400, '模板不在支持的官方系统目录中');
     return enqueue('template-download', null, null, input);

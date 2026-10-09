@@ -11,8 +11,8 @@ import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFoote
 export function TextField({ label, hint, ...props }: ComponentProps<typeof Input> & { label: string; hint?: string }) {
   return <Field name={props.name}><FieldLabel>{label}</FieldLabel><Input {...props}/>{hint && <FieldDescription>{hint}</FieldDescription>}</Field>;
 }
-export function Choice({ label, value, onChange, items, name, disabled }: { label: string; value: string; onChange: (value: string) => void; items: { value: string; label: string }[]; name?: string; disabled?: boolean }) {
-  return <Field name={name}><FieldLabel>{label}</FieldLabel><Select items={items} name={name} value={value} onValueChange={v => onChange(String(v ?? ''))} disabled={disabled}><SelectTrigger className="w-full"><SelectValue/></SelectTrigger><SelectPopup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectPopup></Select></Field>;
+export function Choice({ label, value, onChange, items, name, disabled }: { label: string; value: string; onChange: (value: string) => void; items: { value: string; label: string; disabled?: boolean }[]; name?: string; disabled?: boolean }) {
+  return <Field name={name}><FieldLabel>{label}</FieldLabel><Select items={items} name={name} value={value} onValueChange={v => onChange(String(v ?? ''))} disabled={disabled}><SelectTrigger className="w-full"><SelectValue/></SelectTrigger><SelectPopup>{items.map(item => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectPopup></Select></Field>;
 }
 export function Feedback({ error, message }: { error?: string; message?: string }) {
   if (!error && !message) return null;

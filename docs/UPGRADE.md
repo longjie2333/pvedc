@@ -47,6 +47,7 @@
 - Web 绑定地址接受 `0.0.0.0`；Caddy 示例连接回环地址，Docker 反代明确提示填写宿主机网关。类型、构建、53 项 Vitest 通过；真实 Relay 监听验证随隔离联调完成。
 - Basic Auth 通过独立管理员 GET 接口按需读取，页面显示/复制完整 Authorization 请求头，可隐藏且离开后不缓存。54 项 Vitest、7 条 Playwright 通过；另增加真实后台任务失败 Toast 流程，管理员专项通过。
 - gost API 同步实现持久化检查点和加密全配置快照；应用以自身权限写入配置，helper 只允许重启固定服务并校验安装身份。包含端口冲突、真实 HTTP Basic 验证、失败回滚、中断恢复、旧平台密码不一致时保留宿主实际密码的测试。`pnpm test`：62 项 Vitest + 3 项 Python 测试通过；7 条 Playwright 通过。部署脚本支持首次 API 环境变量并保留已存在配置的实际地址。
+- PVE 选项：桥接过滤活动网桥/VNet，存储按 rootdir/vztmpl 筛选，模板按发行版及已下载状态筛选；Web 保存重新验证选择。NAT 自动生成八字符 VNet 名称并保留已有名称。类型、构建、66 项 Vitest + 3 项 Python、7 条浏览器回归及额外网桥选择用例通过。
 
 ## 后续实施注意
 

@@ -1,3 +1,4 @@
+import type { StorageOption } from '../../shared/pve-options';
 import { copyText } from '@/lib/feedback';
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -48,9 +49,12 @@ export function AdminPage() {
   </>;
 }
 function Templates() {
-  const command = useCommand(), [storage, setStorage] = useState('local');
-  const data = useQuery({ queryKey: ['templates', storage], queryFn: () => request<{ catalog: { template: string }[]; downloaded: { volid: string }[] }>('admin/templates?storage=' + encodeURIComponent(storage)) });
-  return <Panel title="官方系统模板" detail="下载完成后，复制模板卷 ID 到资源配置。"><div className="p-6"><TextField label="模板存储" value={storage} onChange={e => setStorage(e.target.value)}/><Feedback {...command}/><Feedback error={data.error?.message}/></div>{data.data && <Table><TableHeader><TableRow><TableHead>模板</TableHead><TableHead>状态</TableHead><TableHead/></TableRow></TableHeader><TableBody>{data.data.catalog.map(t => { const downloaded = data.data.downloaded.some(d => d.volid.endsWith('/' + t.template)); return <TableRow key={t.template}><TableCell className="mono text-xs">{t.template}</TableCell><TableCell>{downloaded ? '已下载' : '可下载'}</TableCell><TableCell>{downloaded ? <Button size="xs" variant="outline" onClick={() => copyText(storage + ':vztmpl/' + t.template)}>复制卷 ID</Button> : <Button size="xs" loading={command.pending} onClick={() => command.run('admin/templates/download', { storage, template: t.template })}>下载</Button>}</TableCell></TableRow>; })}</TableBody></Table>}</Panel>;
+  const command = useCommand(), [selectedStorage, setStorage] = useState('');
+  const stores = useQuery({ queryKey: ['pve-options', 'storages'], queryFn: () => request<StorageOption[]>('admin/options/storages') });
+  const available = (stores.data || []).filter(store => store.content.includes('vztmpl'));
+  const storage = selectedStorage || available[0]?.storage || '';
+  const data = useQuery({ queryKey: ['templates', storage], queryFn: () => request<{ catalog: { template: string }[]; downloaded: { volid: string }[] }>('admin/templates?storage=' + encodeURIComponent(storage)), enabled: !!storage });
+  return <Panel title="官方系统模板" detail="下载完成后，即可在资源配置中选择该模板。"><div className="p-6"><Choice label="模板存储" value={storage} onChange={setStorage} items={available.map(store => ({ value: store.storage, label: store.storage }))}/><Feedback error={stores.error?.message}/><Button type="button" variant="ghost" loading={stores.isFetching} onClick={() => void stores.refetch()}>刷新存储</Button><Feedback {...command}/><Feedback error={data.error?.message}/></div>{data.data && <Table><TableHeader><TableRow><TableHead>模板</TableHead><TableHead>状态</TableHead><TableHead/></TableRow></TableHeader><TableBody>{data.data.catalog.map(t => { const downloaded = data.data.downloaded.some(d => d.volid.endsWith('/' + t.template)); return <TableRow key={t.template}><TableCell className="mono text-xs">{t.template}</TableCell><TableCell>{downloaded ? '已下载' : '可下载'}</TableCell><TableCell>{downloaded ? <Button size="xs" variant="outline" onClick={() => copyText(storage + ':vztmpl/' + t.template)}>复制卷 ID</Button> : <Button size="xs" loading={command.pending} onClick={() => command.run('admin/templates/download', { storage, template: t.template })}>下载</Button>}</TableCell></TableRow>; })}</TableBody></Table>}</Panel>;
 }
 function Deployment() {
   const data = useQuery({ queryKey: ['deployment'], queryFn: () => request<{ caddy: string; relay: unknown; proxy: {scheme:string; host:string | null; port:number}; notes: string }>('admin/deployment') });
