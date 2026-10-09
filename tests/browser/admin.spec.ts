@@ -39,6 +39,15 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.getByRole('link', { name: '公网转发', exact: true }).click();
   await expect(page.getByRole('heading', { name: '本机 gost API', exact: true })).toBeVisible();
   await expect(page.getByLabel('PVE API 地址', { exact: true })).toHaveCount(0);
+  let credentialReads = 0;
+  await page.route('**/api/admin/gost/authorization', route => { credentialReads++; return route.fulfill({ json: { authorization: 'Basic dGVzdDp0ZXN0' } }); });
+  expect(credentialReads).toBe(0);
+  await expect(page.getByLabel('Authorization 请求头')).toHaveCount(0);
+  await page.getByRole('button', { name: '显示调用凭据', exact: true }).click();
+  await expect(page.getByLabel('Authorization 请求头')).toHaveValue('Authorization: Basic dGVzdDp0ZXN0');
+  expect(credentialReads).toBe(1);
+  await page.getByRole('button', { name: '隐藏凭据', exact: true }).click();
+  await expect(page.getByLabel('Authorization 请求头')).toHaveCount(0);
   await page.getByLabel('Relay 主机', { exact: true }).fill('relay.example.test');
   const saved = page.waitForRequest(request => request.url().endsWith('/api/admin/settings') && request.method() === 'PUT');
   await page.getByRole('button', { name: '保存公网配置', exact: true }).click();
@@ -46,6 +55,10 @@ test('administrator login, roster, network, profiles and responsive settings', a
   expect(patch.relayHost).toBe('relay.example.test');
   expect(patch).not.toHaveProperty('pveUrl');
   expect(patch).not.toHaveProperty('title');
+  // Missing Relay credentials fail before any external connection is attempted.
+  await page.getByRole('button', { name: '应用 gost 配置', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '任务已提交', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '应用 gost 配置需要处理', exact: true })).toBeVisible({ timeout: 10000 });
   await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);

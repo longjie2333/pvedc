@@ -6,6 +6,7 @@ import { copyText } from '@/lib/feedback';
 import { Choice, Feedback, Loading, Panel, TextField } from '@/components/common';
 import { SwitchSetting } from '@/components/switch-setting';
 import { OtpInput } from '@/components/otp-input';
+import { GostCredentials } from '@/components/gost-credentials';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -27,10 +28,10 @@ export function SettingsEditor({ profiles = [], section = 'platform' }: { profil
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => request<SafeSettings>('admin/settings') });
   if (settings.isPending) return <Loading/>;
   if (settings.error) return <Feedback error={settings.error.message}/>;
-  return <><SettingsForm key={section} section={section} initial={settings.data} profiles={profiles}/>{section === 'platform' && <TotpSettings/>}</>;
+  return <><SettingsForm key={section} section={section} initial={settings.data} profiles={profiles} revision={settings.dataUpdatedAt}/>{section === 'platform' && <TotpSettings/>}</>;
 }
 
-function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; profiles: Profile[]; section: 'platform' | 'forwarding' }) {
+function SettingsForm({ initial, profiles, section, revision }: { initial: SafeSettings; profiles: Profile[]; section: 'platform' | 'forwarding'; revision: number }) {
   const groups = section === 'platform' ? platformGroups : forwardingGroups;
   const fields = [...groups.flatMap(group => group.fields.map(([key]) => key)), ...(section === 'platform' ? ['defaultProfileId'] : [])];
   const [values, setValues] = useState<Record<string, unknown>>({ ...initial });
@@ -53,6 +54,7 @@ function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; p
               hint={type === 'password' && initial.secrets[key as keyof SafeSettings['secrets']] ? '已配置；留空保留现有凭据' : undefined}
               onChange={event => setValues({ ...values, [key]: type === 'number' ? Number(event.target.value) : type === 'array' ? event.target.value.split(/[\s,]+/).filter(Boolean).map(Number) : event.target.value })}/>) }
       </div>
+      {group.title === '本机 gost API' && <GostCredentials key={revision}/>}
       {group.fields.some(([, , type]) => type === 'boolean') && <section aria-label="开关设置" className="grid gap-3 border-t p-6">
         {group.fields.filter(([, , type]) => type === 'boolean').map(([key, label]) => <SwitchSetting key={key} label={label}
           description={key === 'registrationOpen' ? '开放后，名单内学生可以认领并创建计算资源。' : '未被指定配置的学生可以自行选择已发布的规格。'}

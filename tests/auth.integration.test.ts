@@ -161,6 +161,22 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/overview', undefined, adminCookie)).json).not.toHaveProperty('tasks');
     expect((await call('me/overview', undefined, studentCookie)).json).not.toHaveProperty('tasks');
   });
+  it('only reveals Basic API credentials through the explicit administrator endpoint', async () => {
+    const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
+    const settings = JSON.parse(previous);
+    // Reuse the already encrypted fixture credential without introducing plaintext into storage.
+    db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...settings, gostUser: 'api-test', gostPassword: settings.pveTokenSecret }));
+    try {
+      const revealed = await call('admin/gost/authorization', undefined, adminCookie);
+      expect(revealed.json.authorization).toBe('Basic ' + Buffer.from('api-test:test-sensitive-value').toString('base64'));
+      expect(revealed.response.headers.get('cache-control')).toBe('no-store');
+      expect((await call('admin/gost/authorization', undefined, studentCookie)).response.status).toBe(403);
+      expect((await call('admin/gost/authorization')).response.status).toBe(401);
+      expect(JSON.stringify((await call('admin/settings', undefined, adminCookie)).json)).not.toContain(revealed.json.authorization);
+      expect(JSON.stringify(db.prepare('SELECT * FROM audit').all())).not.toContain(revealed.json.authorization);
+      expect(output).not.toContain(revealed.json.authorization);
+    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+  });
   it('revokes disabled accounts and logout sessions immediately', async () => {
     await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);

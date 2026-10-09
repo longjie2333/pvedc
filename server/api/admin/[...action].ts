@@ -20,6 +20,11 @@ export default api(async event => {
     if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
     if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'settings') return safeSettings();
+    if (action === 'gost' && id === 'authorization') {
+      const settings = getSettings();
+      ensure(settings.gostUser && settings.gostPassword, 409, '请先配置 gost API 用户名和密码');
+      return { authorization: 'Basic ' + Buffer.from(settings.gostUser + ':' + settings.gostPassword).toString('base64') };
+    }
     if (action === 'capacities') return allCapacities();
     if (action === 'inventory') return inventory();
     if (action === 'audit') return id === 'actions' ? getDb().prepare('SELECT DISTINCT action FROM audit ORDER BY action').all() : auditPage(Object.fromEntries(event.url.searchParams));
