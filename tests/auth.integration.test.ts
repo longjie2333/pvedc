@@ -96,6 +96,18 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/overview', undefined, studentCookie)).response.status).toBe(403);
     expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('a00001234');
   });
+  it('scopes task notifications to the owner and never returns task secrets', async () => {
+    const insert = db.prepare("INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,'succeeded','complete','{}','do-not-return',1,1)");
+    insert.run('owned-task', 'start', 'a00001234');
+    insert.run('other-task', 'start', 'a00001235');
+    const owned = await call('me/tasks/owned-task', undefined, studentCookie);
+    expect(owned.response.status).toBe(200);
+    expect(owned.json.id).toBe('owned-task');
+    expect(JSON.stringify(owned.json)).not.toContain('do-not-return');
+    expect((await call('me/tasks/other-task', undefined, studentCookie)).response.status).toBe(404);
+    expect((await call('admin/tasks/other-task', undefined, adminCookie)).response.status).toBe(200);
+    expect((await call('admin/tasks/other-task')).response.status).toBe(401);
+  });
   it('revokes disabled accounts and logout sessions immediately', async () => {
     await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);

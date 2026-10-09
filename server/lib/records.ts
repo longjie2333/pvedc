@@ -1,5 +1,6 @@
-import type { Forward, Network, Profile, Resource, Student, Task } from '../../shared/schema';
+import type { Actor, Forward, Network, Profile, Resource, Student, Task } from '../../shared/schema';
 import { getDb } from './db';
+import { ensure } from './errors';
 
 export interface StudentRow { id: string; name: string; class_name: string; profile_id: string | null; enabled: number; password_hash: string | null; created_at: number }
 interface ResourceRow { id: string; student_id: string; vmid: number; profile_id: string; network_id: string; ip: string; spec: string; network: string; state: Resource['state']; created_at: number }
@@ -24,6 +25,11 @@ export function students(): Student[] {
 }
 export function taskView(r: JobRow): Task {
   return { id: r.id, type: r.type, studentId: r.student_id, resourceId: r.resource_id, state: r.state, step: r.step, error: r.error, createdAt: r.created_at, updatedAt: r.updated_at };
+}
+export function taskForActor(id: string, actor: Actor): Task {
+  const row = getDb().prepare('SELECT * FROM jobs WHERE id=?').get(id) as JobRow | undefined;
+  ensure(row && (actor.role === 'admin' || row.student_id === actor.sub), 404, '任务不存在');
+  return taskView(row);
 }
 export function tasks(studentId?: string): Task[] {
   const rows = studentId ? getDb().prepare('SELECT * FROM jobs WHERE student_id=? ORDER BY created_at DESC LIMIT 100').all(studentId) : getDb().prepare('SELECT * FROM jobs ORDER BY created_at DESC LIMIT 100').all();

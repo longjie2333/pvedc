@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { api, actor, body } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { forwards, profiles, resources, students, tasks } from '../../lib/records';
+import { forwards, profiles, resources, students, tasks, taskForActor } from '../../lib/records';
 import { getSettings } from '../../lib/settings';
 import { allocate, changeForward, createForward, resourceAction } from '../../lib/provision';
 import { forwardSchema, password } from '../../../shared/schema';
@@ -13,6 +13,7 @@ export default api(async event => {
   const [, , , action, id, operation] = event.url.pathname.split('/');
   const resource = resources().find(r => r.studentId === user.sub);
   if (event.req.method === 'GET') {
+    if (action === 'tasks' && id) return taskForActor(id, user);
     if (action === 'overview') {
       const settings = getSettings();
       return { student: students().find(s => s.id === user.sub), resource, tasks: tasks(user.sub), forwards: forwards(user.sub),

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { api, actor, body } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { forwards, networks, profiles, resources, students, tasks } from '../../lib/records';
+import { forwards, networks, profiles, resources, students, tasks, taskForActor } from '../../lib/records';
 import { getSettings, safeSettings, saveSettings } from '../../lib/settings';
 import { audit, getDb } from '../../lib/db';
 import { exportStudents, importStudents, removeCatalog, resetClaim, saveNetwork, saveProfile, saveStudents, validateSettings } from '../../lib/catalog';
@@ -17,6 +17,7 @@ export default api(async event => {
   const [, , , action, id, operation] = event.url.pathname.split('/');
   if (event.req.method === 'GET') {
     if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), tasks: tasks(), forwards: forwards() };
+    if (action === 'tasks' && id) return taskForActor(id, user);
     if (action === 'settings') return safeSettings();
     if (action === 'capacities') return allCapacities();
     if (action === 'inventory') return inventory();

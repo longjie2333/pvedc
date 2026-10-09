@@ -117,7 +117,6 @@ pre { overflow: auto; padding: 20px; border-radius: 10px; background: #f0f4ef; f
 .search-box svg { position: absolute; top: 10px; left: 11px; width: 14px; height: 14px; color: #93a090; z-index: 1; }
 .search-box input { padding-left: 32px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.switch-label { display: flex; align-items: center; gap: 10px; font-size: 12px; min-height: 38px; }
 .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
 .profile-card { display: flex; flex-direction: column; gap: 18px; padding: 26px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
 .tile-icon { width: 40px; height: 40px; border-radius: 10px; background: #eef3e8; display: grid; place-items: center; color: #819670; }
