@@ -68,6 +68,18 @@ describe('real HTTP authentication and authorization', () => {
     expect(bad.response.status).toBe(400);
     expect((await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id)).toEqual(['a00001234', 'a00001235']);
   });
+  it('searches the public roster by name or case-insensitive student ID', async () => {
+    const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
+    db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...JSON.parse(previous), registrationOpen: true }));
+    try {
+      const name = await call('public/roster?q=' + encodeURIComponent('第二位'));
+      expect(name.json.students.map((s: { id: string }) => s.id)).toEqual(['a00001235']);
+      expect((await call('public/roster?q=A00001234')).json.students[0].id).toBe('a00001234');
+      expect((await call('public/roster?q=' + encodeURIComponent("' OR 1=1"))).json.students).toEqual([]);
+      expect((await call('public/roster?q=' + 'x'.repeat(101))).response.status).toBe(400);
+      expect(JSON.stringify(name.json)).not.toContain('password_hash');
+    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+  });
   it('does not expose credentials through settings or store them as plaintext', async () => {
     const result = await call('admin/settings', { pveTokenSecret: 'test-sensitive-value' }, adminCookie);
     expect(result.response.status).toBe(200); expect(JSON.stringify(result.json)).not.toContain('test-sensitive-value');
