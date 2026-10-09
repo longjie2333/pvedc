@@ -8,6 +8,10 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.getByRole('button', { name: '管理员入口' }).click();
   await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
   await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '宿主机总体状况' })).toBeVisible();
+  await expect(page.getByText(/Browser Test CPU/)).toBeVisible();
+  await expect(page.getByText('12.0%', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '宿主网络 · KiB/s' })).toBeVisible();
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '添加学生' }).click();
   await page.getByLabel('学号', { exact: true }).fill('a00990001');

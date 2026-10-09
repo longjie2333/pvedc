@@ -1,8 +1,9 @@
 import type { ListeningPort, Resource } from '../../shared/schema';
-import { containerPath, pve, type ContainerStatus } from './pve';
+import { containerPath, nodePath, pve, type ContainerStatus, type NodeStatus } from './pve';
 import { helper } from './helper';
+import { getSettings } from './settings';
+import type { HostMetrics, Sample } from '../../shared/metrics';
 
-interface Sample<T> { data: T | null; updatedAt: number | null; error: string | null }
 const cache = new Map<string, { expires: number; sample: Sample<unknown>; pending?: Promise<Sample<unknown>> }>();
 async function sample<T>(key: string, seconds: number, read: () => Promise<T>): Promise<Sample<T>> {
   const old = cache.get(key);
@@ -28,4 +29,24 @@ export async function monitor(resource: Resource, ports = false) {
 }
 export function history(resource: Resource) {
   return sample('history:' + resource.id, 60, () => pve<Record<string, number>[]>(containerPath(resource.vmid) + '/rrddata', 'GET', { timeframe: 'hour', cf: 'AVERAGE' }));
+}
+
+export function hostStatus() {
+  const settings = getSettings();
+  return sample<HostMetrics>('host:' + settings.pveUrl + ':' + settings.pveNode, 5, async () => {
+    const [node, storages] = await Promise.all([
+      pve<NodeStatus & { cpuinfo: { cpus: number; model: string }; swap: HostMetrics['swap']; rootfs: HostMetrics['rootfs']; loadavg: string[]; pveversion: string }>(nodePath() + '/status'),
+      pve<{ storage: string; type: string; active: number; enabled: number; total?: number; used?: number; avail?: number }[]>(nodePath() + '/storage'),
+    ]);
+    return { node: settings.pveNode, cpu: node.cpu, cpus: node.cpuinfo.cpus, cpuModel: node.cpuinfo.model, uptime: node.uptime, version: node.pveversion,
+      load: node.loadavg.map(Number), memory: node.memory, swap: node.swap, rootfs: node.rootfs,
+      storages: storages.map(storage => ({ name: storage.storage, type: storage.type, active: Number(storage.active) === 1 && Number(storage.enabled) === 1,
+        used: storage.used ?? null, total: storage.total ?? null, available: storage.avail ?? null })),
+    };
+  });
+}
+
+export function hostHistory() {
+  const settings = getSettings();
+  return sample('host-history:' + settings.pveUrl + ':' + settings.pveNode, 60, () => pve<Record<string, number>[]>(nodePath() + '/rrddata', 'GET', { timeframe: 'hour', cf: 'AVERAGE' }));
 }

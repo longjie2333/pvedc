@@ -9,7 +9,7 @@ import { forwardSchema, networkSchema, password, profileSchema, settingsSchema, 
 import { changeForward, createForward, enqueue, resourceAction } from '../../lib/provision';
 import { allCapacities, inventory } from '../../lib/inventory';
 import { nodePath, pve, type PveTemplate } from '../../lib/pve';
-import { history, monitor } from '../../lib/monitor';
+import { history, monitor, hostStatus, hostHistory } from '../../lib/monitor';
 import { queueGostApi } from '../../lib/gost-api';
 import { bridgeOptions, storageOptions, templateOptions, validateProfileOptions, prepareNetwork, networkInputSchema } from '../../lib/pve-options';
 import { taskPage, auditPage } from '../../lib/activity';
@@ -29,6 +29,8 @@ export default api(async event => {
     }
     if (action === 'capacities') return allCapacities();
     if (action === 'inventory') return inventory();
+    if (action === 'host' && id === 'status') return hostStatus();
+    if (action === 'host' && id === 'history') return hostHistory();
     if (action === 'options') {
       if (id === 'networks') return bridgeOptions();
       if (id === 'storages') return storageOptions();
