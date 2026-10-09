@@ -11,13 +11,13 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '添加学生' }).click();
-  await page.getByLabel('学号', { exact: true }).fill('00990001');
+  await page.getByLabel('学号', { exact: true }).fill('a00990001');
   await page.getByLabel('姓名', { exact: true }).fill('本地测试同学');
   await page.getByLabel('班级', { exact: true }).fill('集成测试班');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByText('本地测试同学', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '导入名单' }).click();
-  await page.getByLabel('学生名单 CSV').fill('学号,姓名,班级\n00990002,批量测试同学,集成测试班');
+  await page.getByLabel('学生名单 CSV').fill('学号,姓名,班级\na00990002,批量测试同学,集成测试班');
   await page.getByRole('button', { name: '导入', exact: true }).click();
   await expect(page.getByText('批量测试同学', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: '网络与地址池', exact: true }).click();

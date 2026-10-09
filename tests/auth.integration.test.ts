@@ -62,11 +62,11 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/overview')).response.status).toBe(401);
   });
   it('imports rosters transactionally and preserves leading zeros', async () => {
-    const result = await call('admin/students/import', { csv: '学号,姓名,班级\n00001234,测试同学,测试班\n00001235,第二位同学,测试班' }, adminCookie);
+    const result = await call('admin/students/import', { csv: '学号,姓名,班级\na00001234,测试同学,测试班\na00001235,第二位同学,测试班' }, adminCookie);
     expect(result.response.status).toBe(200); expect(result.json.count).toBe(2);
-    const bad = await call('admin/students/import', { csv: '学号,姓名\n00001236,第三位\n00001236,重复' }, adminCookie);
+    const bad = await call('admin/students/import', { csv: '学号,姓名\na00001236,第三位\na00001236,重复' }, adminCookie);
     expect(bad.response.status).toBe(400);
-    expect((await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id)).toEqual(['00001234', '00001235']);
+    expect((await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id)).toEqual(['a00001234', 'a00001235']);
   });
   it('does not expose credentials through settings or store them as plaintext', async () => {
     const result = await call('admin/settings', { pveTokenSecret: 'test-sensitive-value' }, adminCookie);
@@ -90,14 +90,14 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/settings', { title: 'Rejected' }, adminCookie, 'https://untrusted.invalid')).response.status).toBe(403);
   });
   it('authenticates students without granting administrator access', async () => {
-    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-test-password'), '00001234');
-    const result = await call('auth/student', { studentId: '00001234', password: 'Student-test-password' });
+    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-test-password'), 'a00001234');
+    const result = await call('auth/student', { studentId: 'a00001234', password: 'Student-test-password' });
     expect(result.response.status).toBe(200); studentCookie = result.cookie;
     expect((await call('admin/overview', undefined, studentCookie)).response.status).toBe(403);
-    expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('00001234');
+    expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('a00001234');
   });
   it('revokes disabled accounts and logout sessions immediately', async () => {
-    await call('admin/students', { id: '00001234', name: '测试同学', enabled: false }, adminCookie);
+    await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);
     expect((await call('auth/logout', {}, adminCookie)).response.status).toBe(200);
     expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(401);
