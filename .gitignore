@@ -1,0 +1,15 @@
+node_modules/
+.output/
+.nitro/
+.data/
+.env
+.env.*
+!.env.example
+dist/
+coverage/
+test-results/
+playwright-report/
+*.log
+__pycache__/
+*.pyc
+.idea

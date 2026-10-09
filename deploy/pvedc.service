@@ -1,0 +1,28 @@
+[Unit]
+Description=PVE Distribution Center
+After=network-online.target pveproxy.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pvedc
+Group=pvedc
+WorkingDirectory=/opt/pvedc
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+Environment=PDC_DATA_DIR=/var/lib/pvedc
+Environment=PDC_BOOTSTRAP_FILE=/etc/pvedc/bootstrap.json
+EnvironmentFile=/etc/pvedc/runtime.env
+ExecStart=/opt/pvedc-runtime/bin/node /opt/pvedc/.output/server/index.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+# sudo is restricted to the root-owned helper via an exact sudoers rule.
+ReadWritePaths=/var/lib/pvedc
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=PVE Distribution Center GOST client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pvedc
+Group=pvedc
+WorkingDirectory=/var/lib/pvedc/gost
+ExecStart=/usr/local/bin/pvedc-gost -C /var/lib/pvedc/gost/gost.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pvedc/gost /var/lib/pvedc/.gost
+
+[Install]
+WantedBy=multi-user.target
