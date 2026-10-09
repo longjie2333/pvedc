@@ -39,9 +39,17 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.getByRole('option', { name: /ubuntu-24.04/ }).click();
   await page.getByRole('combobox', { name: '系统盘存储', exact: true }).click();
   await page.getByRole('option', { name: /local-lvm/ }).click();
+  const cpu = page.getByRole('combobox', { name: 'CPU 核数', exact: true });
+  await cpu.fill('6'); await cpu.press('Tab');
+  const memory = page.getByRole('combobox', { name: '内存 MiB', exact: true });
+  await memory.fill('3072'); await memory.press('Tab');
+  const disk = page.getByRole('combobox', { name: '系统盘 GiB', exact: true });
+  await disk.fill('12'); await disk.press('Tab');
   await page.getByRole('switch', { name: '公开发布' }).check();
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('heading', { name: '仅本地测试规格' })).toBeVisible();
+  const overview = await (await page.request.get('/api/admin/overview')).json();
+  expect(overview.profiles.find((profile: { name: string }) => profile.name === '仅本地测试规格')).toMatchObject({ cores: 6, memory: 3072, disk: 12 });
   await page.getByRole('button', { name: '设为默认' }).click();
   await expect(page.getByText('默认配置', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/admin-profiles.png', fullPage: true });
