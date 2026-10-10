@@ -12,6 +12,7 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await expect(page.getByText(/Browser Test CPU/)).toBeVisible();
   await expect(page.getByText('12.0%', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '宿主网络 · KiB/s' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/admin-overview.png', fullPage: true });
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '添加学生' }).click();
   await page.getByLabel('学号', { exact: true }).fill('a00990001');
@@ -72,6 +73,7 @@ test('administrator login, roster, network, profiles and responsive settings', a
   expect(credentialReads).toBe(1);
   await page.getByRole('button', { name: '隐藏凭据', exact: true }).click();
   await expect(page.getByLabel('Authorization 请求头')).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/admin-forwarding.png', fullPage: true });
   await page.getByLabel('Relay 主机', { exact: true }).fill('relay.example.test');
   const saved = page.waitForRequest(request => request.url().endsWith('/api/admin/settings') && request.method() === 'PUT');
   await page.getByRole('button', { name: '保存公网配置', exact: true }).click();

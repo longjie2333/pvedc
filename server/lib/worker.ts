@@ -1,4 +1,4 @@
-import { getDb, meta, now, audit } from './db';
+import { getDb, now, audit } from './db';
 import { resources, forwards, type FullJobRow } from './records';
 import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pve, taskStatus, type ContainerStatus } from './pve';
 import { AppError, ensure } from './errors';

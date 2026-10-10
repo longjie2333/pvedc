@@ -3,16 +3,15 @@ import { copyText } from '@/lib/feedback';
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDownToLine, ArrowUpRight, CheckCircle2, Cpu, HardDrive, Plus, Search, Users } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, Cpu, HardDrive, Plus, Users } from 'lucide-react';
 import type { Forward, Network, Profile, Resource, SafeSettings, Student } from '../../shared/schema';
-import { downloadFile, request, useCommand } from '@/lib/api';
+import { request, useCommand } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Form } from '@/components/ui/form';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Choice, Empty, Feedback, Loading, Modal, PageTitle, Panel, Stat, Status, TextField, date } from '@/components/common';
+import { Choice, Empty, Feedback, Loading, Modal, PageTitle, Panel, Stat, Status } from '@/components/common';
 import { ForwardPanel } from '@/components/forward-panel';
 import { MachineDetail } from '@/components/resource';
 import { CatalogEditor } from './editors';
@@ -45,7 +44,7 @@ export function AdminPage() {
   {page === 'settings' && <SettingsEditor profiles={d.profiles}/>}
   <Modal destructive open={!!confirmation} onClose={() => setConfirmation(undefined)} title={confirmation?.title || "确认操作"} description={confirmation?.description || ""} footer={<Button variant="destructive" loading={command.pending} onClick={async () => { if (confirmation && await command.run(confirmation.path, {}, confirmation.method || "POST")) setConfirmation(undefined); }}>确认</Button>}><Feedback error={command.error}/></Modal>
   {editor && <CatalogEditor key={editor.kind + (editor.item?.id || 'new')} {...editor} profiles={d.profiles} networks={d.networks} onClose={() => setEditor(undefined)}/>}
-  <Modal open={importing} onClose={() => setImporting(false)} title="批量导入学生" description="支持粘贴 CSV 或从表格复制的内容。相同学号更新姓名、班级和指定配置，保留认领状态。" footer={<Button form="import-form" type="submit" loading={command.pending}>导入</Button>}><Form id="import-form" onSubmit={async e => { e.preventDefault(); if (await command.run('admin/students/import', { csv: new FormData(e.currentTarget).get('csv') })) setImporting(false); }}><Feedback error={fileError || command.error}/><label className="flex flex-col gap-2 mb-4 text-sm">选择 UTF-8 CSV 文件<input type="file" accept=".csv,.tsv,text/csv" onChange={async e => { const file=e.target.files?.[0]; if (!file) return; if(file.size>1500000) { setFileError("文件过大，请分批导入"); return; } setFileError(""); setCsv(await file.text()); }}/></label><Textarea name="csv" value={csv} onChange={e => setCsv(e.target.value)} required rows={10} aria-label="学生名单 CSV" placeholder={'学号,姓名,班级\n20260001,张同学,软件工程一班'}/></Form></Modal>
+  <Modal open={importing} onClose={() => setImporting(false)} title="批量导入学生" description="支持粘贴 CSV 或从表格复制的内容。相同学号更新姓名、班级和指定配置，保留认领状态。" footer={<Button form="import-form" type="submit" loading={command.pending}>导入</Button>}><Form id="import-form" onSubmit={async e => { e.preventDefault(); if (await command.run('admin/students/import', { csv: new FormData(e.currentTarget).get('csv') })) setImporting(false); }}><Feedback error={fileError || command.error}/><label className="flex flex-col gap-2 mb-4 text-sm">选择 UTF-8 CSV 文件<Input nativeInput type="file" accept=".csv,.tsv,text/csv" onChange={async e => { const file=e.target.files?.[0]; if (!file) return; if(file.size>1500000) { setFileError("文件过大，请分批导入"); return; } setFileError(""); setCsv(await file.text()); }}/></label><Textarea name="csv" value={csv} onChange={e => setCsv(e.target.value)} required rows={10} aria-label="学生名单 CSV" placeholder={'学号,姓名,班级\n20260001,张同学,软件工程一班'}/></Form></Modal>
   <Modal open={!!machine} onClose={() => setMachine(undefined)} title="学生计算资源" description={machine?.studentId || ''}>{machine && <><MachineDetail admin resource={machine}/><ForwardPanel admin resource={machine} rules={d.forwards.filter(f => f.resourceId === machine.id)} publicHost={settings.data?.publicHost || ""}/></>}</Modal>
   </>;
 }

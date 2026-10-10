@@ -50,7 +50,7 @@ export function AuthPage({ initialized, title }: { initialized: boolean; title: 
         <Combobox items={options} filteredItems={searching ? [] : matches} value={student} onValueChange={setStudent} required
           itemToStringLabel={item => item.id + ' · ' + item.name} itemToStringValue={item => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
           onInputValueChange={(value, details) => { if (['input-change', 'input-clear', 'clear-press'].includes(details.reason)) { setSearch(value); setStudent(null); } }}>
-          <ComboboxInput placeholder="输入学号或姓名搜索" showClear clearProps={{ 'aria-label': '清除学号' }} triggerProps={{ 'aria-label': '选择学号' }}/>
+          <ComboboxInput type="text" placeholder="输入学号或姓名搜索" showClear clearProps={{ 'aria-label': '清除学号' }} triggerProps={{ 'aria-label': '选择学号' }}/>
           <ComboboxPopup><ComboboxEmpty>{searching ? '正在查找学生…' : roster.error ? '名单加载失败，请重试' : '没有匹配的未认领学生'}</ComboboxEmpty>
             <ComboboxList>{(item: Roster['students'][number]) => <ComboboxItem key={item.id} value={item}><span>{item.id} · {item.name}<small>{item.className || '未填写班级'}</small></span></ComboboxItem>}</ComboboxList>
           </ComboboxPopup>

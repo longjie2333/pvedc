@@ -29,7 +29,7 @@ export function StudentRoster({ students, profiles, onEdit, onMachine, onImport 
     <Panel title="全体学生" detail={'共 ' + students.length + ' 人'} action={<div className="flex gap-2"><Button type="button" variant="outline" onClick={onImport}>导入名单</Button><Button type="button" variant="outline" onClick={() => downloadFile('admin/students/export', 'students.csv')}><ArrowDownToLine/>导出</Button></div>}>
       <Feedback error={command.error}/>
       <div className="flex flex-col gap-4 p-5">
-        <div className="flex flex-wrap items-center gap-2"><div className="search-box"><Search/><Input aria-label="搜索学生" placeholder="搜索学号、姓名或班级" value={query} onChange={event => { setQuery(event.target.value); setSelected([]); }}/></div>
+        <div className="flex flex-wrap items-center gap-2"><div className="search-box"><Search/><Input type="search" aria-label="搜索学生" placeholder="搜索学号、姓名或班级" value={query} onChange={event => { setQuery(event.target.value); setSelected([]); }}/></div>
           <Button type="button" variant="outline" onClick={() => setSelected(filtered.map(student => student.id))}>全选</Button>
           <Button type="button" variant="outline" onClick={() => setSelected(filtered.filter(student => !selected.includes(student.id)).map(student => student.id))}>反选</Button>
           <Button type="button" variant="ghost" onClick={() => setSelected([])}>清空选择</Button><span className="text-sm text-muted-foreground">已选择 {selected.length} 人</span>

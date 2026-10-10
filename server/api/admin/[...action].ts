@@ -5,7 +5,7 @@ import { forwards, networks, profiles, resources, students, taskForActor } from 
 import { getSettings, safeSettings, saveSettings } from '../../lib/settings';
 import { audit, getDb } from '../../lib/db';
 import { exportStudents, importStudents, removeCatalog, resetClaim, saveNetwork, saveProfile, saveStudents, validateSettings } from '../../lib/catalog';
-import { forwardSchema, networkSchema, password, profileSchema, settingsSchema, studentSchema } from '../../../shared/schema';
+import { forwardSchema, password, profileSchema, settingsSchema, studentSchema } from '../../../shared/schema';
 import { changeForward, createForward, enqueue, resourceAction } from '../../lib/provision';
 import { allCapacities, inventory } from '../../lib/inventory';
 import { nodePath, pve, type PveTemplate } from '../../lib/pve';

@@ -39,7 +39,7 @@ export function HostOverview() {
             <span>更新：{status.data?.updatedAt ? new Date(status.data.updatedAt).toLocaleTimeString('zh-CN') : '—'}</span>
           </div>
           <Table><TableHeader><TableRow><TableHead>存储</TableHead><TableHead>类型</TableHead><TableHead>状态</TableHead><TableHead>已用 / 总量</TableHead><TableHead>可用</TableHead></TableRow></TableHeader><TableBody>
-            {host.storages.map(storage => <TableRow key={storage.name}><TableCell>{storage.name}</TableCell><TableCell>{storage.type}</TableCell><TableCell><Status state={storage.active ? 'ready' : 'unknown'}/></TableCell><TableCell>{storage.used === null ? '—' : bytes(storage.used)} / {storage.total === null ? '—' : bytes(storage.total)}</TableCell><TableCell>{storage.available === null ? '—' : bytes(storage.available)}</TableCell></TableRow>)}
+            {host.storages.map(storage => <TableRow key={storage.name}><TableCell>{storage.name}</TableCell><TableCell>{storage.type}</TableCell><TableCell><Status state={storage.active ? 'ready' : 'unavailable'}/></TableCell><TableCell>{storage.used === null ? '—' : bytes(storage.used)} / {storage.total === null ? '—' : bytes(storage.total)}</TableCell><TableCell>{storage.available === null ? '—' : bytes(storage.available)}</TableCell></TableRow>)}
           </TableBody></Table>
         </> : <Empty title="宿主机指标暂时不可用"/>}
       </div>

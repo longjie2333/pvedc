@@ -4,7 +4,7 @@ import type { Actor } from '../../shared/schema';
 import { taskNames } from '../../shared/activity';
 import { containerExists, guestConfig, nodePath, ownershipTag, pve, taskStatus } from './pve';
 import { resources } from './records';
-import { AppError, ensure } from './errors';
+import { ensure } from './errors';
 
 export async function retryTask(user: Actor, id: string) {
   const job = getDb().prepare('SELECT * FROM jobs WHERE id=?').get(id) as FullJobRow | undefined;
