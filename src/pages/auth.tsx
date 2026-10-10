@@ -47,12 +47,12 @@ export function AuthPage({ initialized, title }: { initialized: boolean; title: 
       {setup && <div className="setup-secret"><img src={setup.qr} alt="管理员 TOTP 绑定二维码"/><p>用身份验证器扫描二维码，并离线保存密钥。</p><code>{setup.secret}</code><Button variant="outline" onClick={() => copyText(setup.secret)}>复制密钥</Button><label className="flex items-center gap-2 text-sm"><Checkbox required checked={savedKey} onCheckedChange={setSavedKey}/>我已安全保存验证密钥</label></div>}
       {!initialized || mode === 'admin' ? <OtpInput key={initialized ? mode : 'setup'} disabled={command.pending || (!initialized && !savedKey)} error={command.error}/> : <>
       {mode === 'claim' ? <><Field name="studentId"><FieldLabel>我的学号</FieldLabel>
-        <Combobox items={options} filteredItems={searching ? [] : matches} value={student} onValueChange={setStudent} required
+          <Combobox items={options} filteredItems={searching ? options : matches} value={student} onValueChange={setStudent} required
           itemToStringLabel={item => item.id + ' · ' + item.name} itemToStringValue={item => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
           onInputValueChange={(value, details) => { if (['input-change', 'input-clear', 'clear-press'].includes(details.reason)) { setSearch(value); setStudent(null); } }}>
           <ComboboxInput type="text" placeholder="输入学号或姓名搜索" showClear clearProps={{ 'aria-label': '清除学号' }} triggerProps={{ 'aria-label': '选择学号' }}/>
           <ComboboxPopup><ComboboxEmpty>{searching ? '正在查找学生…' : roster.error ? '名单加载失败，请重试' : '没有匹配的未认领学生'}</ComboboxEmpty>
-            <ComboboxList>{(item: Roster['students'][number]) => <ComboboxItem key={item.id} value={item}><span>{item.id} · {item.name}<small>{item.className || '未填写班级'}</small></span></ComboboxItem>}</ComboboxList>
+            <ComboboxList className="claim-options-list">{(item: Roster['students'][number]) => <ComboboxItem key={item.id} value={item}><span>{item.id} · {item.name}<small>{item.className || '未填写班级'}</small></span></ComboboxItem>}</ComboboxList>
           </ComboboxPopup>
         </Combobox>
       </Field>{chosen?.assigned ? <div className="subtle-note">管理员已为你指定资源配置。</div> : roster.data?.selfSelection && <Choice label="资源配置" value={profile} onChange={setProfile} items={[{ value: '', label: '使用默认配置' }, ...roster.data.profiles.map(p => ({ value: p.id, label: p.name + ' · ' + p.cores + ' CPU / ' + p.memory + ' MiB' }))]}/>}</> : <TextField label="学号" name="studentId" autoComplete="username" required placeholder="输入你的学号"/>}
