@@ -5,7 +5,7 @@ import { networkSchema, profileSchema, studentSchema, type NetworkSpec, type Set
 import { audit, getDb, now } from './db';
 import { ensure } from './errors';
 import { availableIps, ipNumber, validateNetwork } from './allocation';
-import { networks, profiles, resources, students } from './records';
+import { networks, profiles, resources, students, studentDeleting } from './records';
 import { revokeSubject } from './sessions';
 import { getSettings, saveSettings } from './settings';
 
@@ -25,6 +25,7 @@ export function saveStudents(inputs: StudentInput[]) {
   const ids = new Set<string>();
   const all = profiles();
   for (const item of inputs) {
+    ensure(!studentDeleting(item.id), 409, '学生正在删除，请先处理删除任务');
     ensure(!ids.has(item.id), 400, '名单中存在重复学号：' + item.id); ids.add(item.id);
     ensure(!item.profileId || all.some(p => p.id === item.profileId && p.enabled), 400, '指定配置不存在或已停用');
   }
@@ -95,7 +96,10 @@ export function removeCatalog(kind: 'students' | 'profiles' | 'networks', id: st
   if (kind === 'students') {
     ensure(!resources().some(r => r.studentId === id), 409, '请先回收学生资源');
     revokeSubject(id);
-    getDb().prepare('UPDATE jobs SET student_id=NULL WHERE student_id=?').run(id);
+    const student = getDb().prepare('SELECT name,class_name FROM students WHERE id=?').get(id) as { name: string; class_name: string } | undefined;
+    getDb().prepare("UPDATE jobs SET payload=json_set(payload,'$.studentId',?,'$.studentName',?,'$.studentClassName',?),student_id=NULL WHERE student_id=?")
+      .run(id, student?.name || '', student?.class_name || '', id);
+    audit('admin', 'student.deleted-identity', id, JSON.stringify(student || {}));
   }
   if (kind === 'networks') {
     ensure(!networkHasTask(id), 409, '网络任务尚未完成，请先处理该任务');
@@ -106,6 +110,7 @@ export function removeCatalog(kind: 'students' | 'profiles' | 'networks', id: st
   audit('admin', kind + '.delete', id);
 }
 export function resetClaim(id: string) {
+  ensure(!studentDeleting(id), 409, '学生正在删除，请先处理删除任务');
   ensure(!resources().some(r => r.studentId === id), 409, '请先回收已有资源');
   revokeSubject(id);
   getDb().prepare('UPDATE students SET password_hash=NULL WHERE id=?').run(id);

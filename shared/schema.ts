@@ -74,7 +74,7 @@ export type ForwardInput = z.infer<typeof forwardSchema>;
 export type Actor = { role: 'admin' | 'student'; sub: string; sessionId: string };
 export type TaskState = 'queued' | 'running' | 'failed' | 'succeeded' | 'attention';
 export type ResourceState = 'reserved' | 'creating' | 'configuring' | 'ready' | 'rebuilding' | 'deleting' | 'failed';
-export interface Student extends StudentInput { claimed: boolean; createdAt: number; resource: Resource | null }
+export interface Student extends StudentInput { claimed: boolean; deleting: boolean; createdAt: number; resource: Resource | null }
 export interface Profile extends ProfileSpec { id: string }
 export interface Network extends NetworkSpec { id: string; ready: boolean; error: string | null }
 export interface Resource {

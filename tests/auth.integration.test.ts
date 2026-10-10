@@ -133,6 +133,8 @@ describe('real HTTP authentication and authorization', () => {
     const result = await call('auth/student', { studentId: 'a00001234', password: 'Student-test-password' });
     expect(result.response.status).toBe(200); studentCookie = result.cookie;
     expect((await call('admin/overview', undefined, studentCookie)).response.status).toBe(403);
+    expect((await call('admin/students/batch', { ids: ['a00001235'], action: 'delete', confirmation: '删除 1 名学生' }, studentCookie)).response.status).toBe(403);
+    expect((await call('admin/host/status', undefined, studentCookie)).response.status).toBe(403);
     expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('a00001234');
   });
   it('scopes task notifications to the owner and never returns task secrets', async () => {

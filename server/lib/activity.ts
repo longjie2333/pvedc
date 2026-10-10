@@ -16,17 +16,17 @@ function readPage<T>(table: string, fields: string, order: string, clauses: stri
 
 export function taskPage(input: unknown, actor: Actor): PageResult<Task> {
   const query = activityQuerySchema.parse(input), clauses: string[] = [], values: (string | number)[] = [];
-  const filters = { 'j.student_id': actor.role === 'student' ? actor.sub : query.studentId, 'j.type': query.type, 'j.state': query.state };
+  const filters = { [actor.role === 'student' ? 'j.student_id' : "COALESCE(j.student_id,json_extract(j.payload,'$.studentId'))"]: actor.role === 'student' ? actor.sub : query.studentId, 'j.type': query.type, 'j.state': query.state };
   for (const [column, value] of Object.entries(filters)) if (value) { clauses.push(column + '=?'); values.push(value); }
   if (query.q) {
-    clauses.push("instr(lower(j.id||' '||j.type||' '||COALESCE(j.student_id,'')||' '||COALESCE(s.name,'')||' '||COALESCE(j.resource_id,'')||' '||COALESCE(j.error,'')),lower(?))>0");
+    clauses.push("instr(lower(j.id||' '||j.type||' '||COALESCE(j.student_id,json_extract(j.payload,'$.studentId'),'')||' '||COALESCE(s.name,json_extract(j.payload,'$.studentName'),'')||' '||COALESCE(j.resource_id,'')||' '||COALESCE(j.error,'')),lower(?))>0");
     values.push(query.q);
   }
   if (query.from !== undefined) { clauses.push('j.created_at>=?'); values.push(query.from); }
   if (query.to !== undefined) { clauses.push('j.created_at<=?'); values.push(query.to); }
   const result = readPage<Parameters<typeof taskView>[0]>(
     'jobs j LEFT JOIN students s ON s.id=j.student_id',
-    'j.id,j.type,j.student_id,j.resource_id,j.state,j.step,j.error,j.created_at,j.updated_at',
+    "j.id,j.type,j.student_id,json_extract(j.payload,'$.studentId') deleted_student_id,j.resource_id,j.state,j.step,j.error,j.created_at,j.updated_at",
     'j.created_at DESC,j.id DESC', clauses, values, query,
   );
   return { ...result, items: result.items.map(taskView) };

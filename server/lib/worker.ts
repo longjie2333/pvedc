@@ -8,6 +8,7 @@ import { hashPassword } from './auth';
 import { revokeSubject } from './sessions';
 import { configureGost, refreshForwardStatus, syncForwards, gostApiUpdating } from './gost';
 import { applyNetwork, removeNetwork } from './network';
+import { removeCatalog } from './catalog';
 import { checkpoint, succeed } from './job-state';
 import { updateGostApi } from './gost-api';
 
@@ -45,6 +46,11 @@ export async function runJob(job: FullJobRow) {
     if (state.status !== 'stopped') return;
     ensure(state.success, 502, '模板下载失败，请检查 PVE 下载任务'); succeed(job); return;
   }
+  if (job.type === 'student-delete' && !job.resource_id) {
+    getDb().transaction(() => { removeCatalog('students', job.student_id || payload.studentId); succeed(job); }).immediate();
+    return;
+  }
+  const reclaiming = job.type === 'reclaim' || job.type === 'student-delete';
   const resource = resources().find(r => r.id === job.resource_id);
   ensure(resource, 409, '任务资源不存在');
   const path = containerPath(resource.vmid);
@@ -84,8 +90,8 @@ export async function runJob(job: FullJobRow) {
 
   if (job.step === 'pending') {
     if (job.type === 'create') checkpoint(job, 'create');
-    if (job.type === 'rebuild' || job.type === 'reclaim') {
-      if (job.type === 'reclaim' && !await containerExists(resource.vmid)) {
+    if (job.type === 'rebuild' || reclaiming) {
+      if (reclaiming && !await containerExists(resource.vmid)) {
         const active = await pve<unknown[]>(nodePath() + '/tasks', 'GET', { vmid: resource.vmid, source: 'active' });
         ensure(!active.length, 409, 'PVE 仍有此 VMID 的活动任务，请等待完成');
         if (forwards(resource.studentId).length) await syncForwards(resource.id, true);
@@ -129,10 +135,11 @@ export async function runJob(job: FullJobRow) {
       ensure(job.upid, 409, '删除请求结果未知，容器仍然存在，请重试任务');
       return;
     }
-    if (job.type === 'reclaim') {
+    if (reclaiming) {
       getDb().transaction(() => {
         getDb().prepare('DELETE FROM forwards WHERE resource_id=?').run(resource.id);
         getDb().prepare('DELETE FROM resources WHERE id=?').run(resource.id);
+        if (job.type === 'student-delete') removeCatalog('students', resource.studentId);
         succeed(job);
       }).immediate(); return;
     }

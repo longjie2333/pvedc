@@ -5,6 +5,7 @@ export const taskNames: Record<string, string> = {
   start: '启动', shutdown: '关机', reboot: '重启', 'template-download': '下载模板',
   'forward-sync': '应用转发', 'gost-configure': '应用 gost 配置',
   'gost-api-update': '同步 gost API',
+  'student-delete': '删除学生',
   'network-apply': '应用网络', 'network-remove': '移除网络',
 };
 export const taskStates = ['queued', 'running', 'succeeded', 'failed', 'attention'] as const;

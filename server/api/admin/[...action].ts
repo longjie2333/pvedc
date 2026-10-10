@@ -10,6 +10,7 @@ import { changeForward, createForward, enqueue, resourceAction } from '../../lib
 import { allCapacities, inventory } from '../../lib/inventory';
 import { nodePath, pve, type PveTemplate } from '../../lib/pve';
 import { history, monitor, hostStatus, hostHistory } from '../../lib/monitor';
+import { studentBatch, batchStatus } from '../../lib/student-batch';
 import { queueGostApi } from '../../lib/gost-api';
 import { bridgeOptions, storageOptions, templateOptions, validateProfileOptions, prepareNetwork, networkInputSchema } from '../../lib/pve-options';
 import { taskPage, auditPage } from '../../lib/activity';
@@ -20,6 +21,7 @@ export default api(async event => {
   const [, , , action, id, operation] = event.url.pathname.split('/');
   if (event.req.method === 'GET') {
     if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
+    if (action === 'tasks' && id === 'batch') return batchStatus(operation);
     if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'settings') return safeSettings();
     if (action === 'gost' && id === 'authorization') {
@@ -65,8 +67,8 @@ export default api(async event => {
       };
     }
   }
-  if (event.req.method === 'DELETE' && ['students', 'profiles', 'networks'].includes(action) && id) {
-    removeCatalog(action as 'students' | 'profiles' | 'networks', id); return { ok: true };
+  if (event.req.method === 'DELETE' && ['profiles', 'networks'].includes(action) && id) {
+    removeCatalog(action as 'profiles' | 'networks', id); return { ok: true };
   }
   ensure(['POST', 'PUT'].includes(event.req.method), 405, '请求方法不支持');
   if (action === 'settings') {
@@ -76,6 +78,7 @@ export default api(async event => {
     validateSettings(settings); saveSettings(settings); audit(user.sub, 'settings.save'); return safeSettings();
   }
   if (action === 'students') {
+    if (id === 'batch') return studentBatch(user, await body(event, z.record(z.string(), z.unknown())));
     if (id === 'import') return importStudents((await body(event, z.object({ csv: z.string().max(1500000) }))).csv);
     if (id && operation === 'reset') { resetClaim(id); return { ok: true }; }
     if (id === 'assign') {

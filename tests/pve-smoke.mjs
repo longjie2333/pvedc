@@ -312,7 +312,8 @@ if (stage === 'cleanup') {
   const current = (await api('admin/overview')).value;
   for (const student of current.students) {
     assert(/^9900000[123]$/.test(student.id), 'Refuse to delete an unrecognized student');
-    await api('admin/students/' + student.id, {}, state.cookie, 'DELETE');
+    const deletion = (await api('admin/students/batch', { ids: [student.id], action: 'delete', confirmation: '删除 1 名学生' })).value;
+    assert.equal(deletion.items[0].status, 'queued'); await job(deletion.items[0].taskId);
   }
   for (const profile of current.profiles) {
     assert([state.profileId, state.ubuntuProfile].includes(profile.id), 'Refuse to delete an unrecognized profile');
