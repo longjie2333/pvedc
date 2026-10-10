@@ -21,7 +21,7 @@ export default api(async event => {
       const settings = getSettings();
       return { student: students().find(s => s.id === user.sub), resource, forwards: forwards(user.sub),
         publicHost: settings.publicHost, selfSelection: settings.selfSelection, defaultProfileId: settings.defaultProfileId,
-        profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name })),
+        profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name, cores: p.cores, memory: p.memory, disk: p.disk, distro: p.distro })),
         forwarding: { quota: settings.forwardQuota, portStart: settings.portStart, portEnd: settings.portEnd },
       };
     }

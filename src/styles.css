@@ -121,6 +121,7 @@ pre { overflow: auto; padding: 20px; border-radius: 10px; background: #f0f4ef; f
 .search-box { width: 300px; position: relative; }
 .search-box svg { position: absolute; top: 10px; left: 11px; width: 14px; height: 14px; color: #93a090; z-index: 1; }
 .search-box input { padding-left: 32px; }
+.inline-field-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
 .profile-card { display: flex; flex-direction: column; gap: 18px; padding: 26px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }

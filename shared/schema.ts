@@ -83,6 +83,7 @@ export type TaskState = 'queued' | 'running' | 'failed' | 'succeeded' | 'attenti
 export type ResourceState = 'reserved' | 'creating' | 'configuring' | 'ready' | 'rebuilding' | 'deleting' | 'failed';
 export interface Student extends StudentInput { claimed: boolean; deleting: boolean; createdAt: number; resource: Resource | null }
 export interface Profile extends ProfileSpec { id: string }
+export interface ProfileSummary { id: string; name: string; cores: number; memory: number; disk: number; distro: 'ubuntu' | 'debian' }
 export interface Network extends NetworkSpec { id: string; ready: boolean; error: string | null }
 export interface Resource {
   id: string; studentId: string; vmid: number; profileId: string; networkId: string;

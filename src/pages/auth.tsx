@@ -8,10 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Combobox, ComboboxInput, ComboboxPopup, ComboboxEmpty, ComboboxList, ComboboxItem } from '@/components/ui/combobox';
 import { OtpInput } from '@/components/otp-input';
-import { Choice, Feedback, TextField } from '@/components/common';
+import { Feedback, ProfileChoice, TextField } from '@/components/common';
 import { request, useCommand } from '@/lib/api';
 
-interface Roster { open: boolean; selfSelection: boolean; students: { id: string; name: string; className: string; assigned: boolean }[]; profiles: { id: string; name: string; cores: number; memory: number; disk: number }[]; defaultProfileId: string }
+interface Roster { open: boolean; selfSelection: boolean; students: { id: string; name: string; className: string; assigned: boolean }[]; profiles: { id: string; name: string; cores: number; memory: number; disk: number; distro: 'ubuntu' | 'debian' }[]; defaultProfileId: string }
 export function AuthPage({ initialized, title }: { initialized: boolean; title: string }) {
   const [savedKey, setSavedKey] = useState(false);
   const [mode, setMode] = useState<'student' | 'admin' | 'claim'>('student');
@@ -55,7 +55,7 @@ export function AuthPage({ initialized, title }: { initialized: boolean; title: 
             <ComboboxList className="claim-options-list">{(item: Roster['students'][number]) => <ComboboxItem key={item.id} value={item}><span>{item.id} · {item.name}<small>{item.className || '未填写班级'}</small></span></ComboboxItem>}</ComboboxList>
           </ComboboxPopup>
         </Combobox>
-      </Field>{chosen?.assigned ? <div className="subtle-note">管理员已为你指定资源配置。</div> : roster.data?.selfSelection && <Choice label="资源配置" value={profile} onChange={setProfile} items={[{ value: '', label: '使用默认配置' }, ...roster.data.profiles.map(p => ({ value: p.id, label: p.name + ' · ' + p.cores + ' CPU / ' + p.memory + ' MiB' }))]}/>}</> : <TextField label="学号" name="studentId" autoComplete="username" required placeholder="输入你的学号"/>}
+      </Field>{chosen?.assigned ? <div className="subtle-note">管理员已为你指定资源配置。</div> : roster.data?.selfSelection && <ProfileChoice value={profile} onChange={setProfile} items={roster.data.profiles}/>}</> : <TextField label="学号" name="studentId" autoComplete="username" required placeholder="输入你的学号"/>}
       <TextField label={mode === 'claim' ? '设置密码' : '密码'} name="password" type="password" minLength={10} maxLength={128} autoComplete={mode === 'claim' ? 'new-password' : 'current-password'} required hint={mode === 'claim' ? '至少 10 位；此密码也用于 LXC 的 root 登录。' : undefined} placeholder="输入密码"/></>}
       <Button size="lg" type="submit" loading={command.pending} disabled={(!initialized && !savedKey) || (mode === 'claim' && (!student || !roster.data?.open))} className="w-full">{!initialized ? '完成绑定，进入管理后台' : mode === 'claim' ? '认领并创建资源' : '登录'}<ArrowRight/></Button>
     </Form>}
