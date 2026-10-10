@@ -143,6 +143,16 @@ pre { overflow: auto; padding: 20px; border-radius: 10px; background: #f0f4ef; f
 .machine-ip strong { font: 17px var(--font-mono); color: #547143; margin-right: auto; }
 .chart { padding: 20px 15px 10px; font-size: 10px; }
 .claim-options-list { min-height: 96px; }
+.guide-content :where(h1,h2,h3,h4) { color: var(--foreground); font-weight: 600; line-height: 1.4; margin: 1.2em 0 .5em; }
+.guide-content :where(h1) { font-size: 1.25rem; }
+.guide-content :where(h2) { font-size: 1.1rem; }
+.guide-content :where(h3,h4) { font-size: 1rem; }
+.guide-content :where(p,ul,ol,pre,blockquote) { margin: .7em 0; }
+.guide-content :where(ul,ol) { padding-left: 1.5rem; }
+.guide-content :where(code) { border-radius: 4px; background: #f0f3ed; padding: .1em .35em; font-family: var(--font-mono); font-size: .9em; }
+.guide-content :where(pre) { overflow-x: auto; border-radius: 8px; background: #1d2b23; color: #e8f0e8; padding: 14px 16px; }
+.guide-content :where(pre code) { background: transparent; padding: 0; }
+.guide-content :where(a) { color: var(--primary); text-decoration: underline; }
 .record-pagination { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; border-top: 1px solid var(--border); padding: 16px 20px; }
 .record-pagination-side { display: inline-flex; align-items: center; gap: 12px; min-width: 0; white-space: nowrap; }
 .record-pagination-side [data-slot=field] { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; }
