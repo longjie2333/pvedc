@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { createServer } from 'node:net';
+import { createServer } from 'node:http';
 import { createSocket } from 'node:dgram';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { generateSync } from 'otplib';
@@ -82,11 +82,12 @@ if (phase === 'api') {
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) { if ((await api('admin/tasks/' + jobId)).value.step === 'api-apply') break; await sleep(100); }
   assert((await api('admin/tasks/' + jobId)).value.step === 'api-apply', 'Missed rollback fault injection checkpoint');
-  const blocker = createServer(socket => { socket.end('HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n'); });
+  const blocker = createServer((_request, response) => { response.writeHead(503, { Connection: 'close' }); response.end(); });
   await new Promise((resolve, reject) => { blocker.once('error', reject); blocker.listen(18882, '127.0.0.1', resolve); });
   try { assert((await waitTask(jobId, true)).state === 'failed', 'Expected a recovered API failure'); }
-  finally { await new Promise(resolve => blocker.close(resolve)); }
+  finally { await new Promise(resolve => { blocker.close(resolve); blocker.closeAllConnections(); }); }
   assert((await api('admin/settings')).value.gostApi === target, 'Rollback did not restore active settings');
+  state.apiVerified = true; save();
   log('real-gost-api-sync-and-rollback-verified');
 }
 
