@@ -15,6 +15,7 @@ import { queueGostApi } from '../../lib/gost-api';
 import { bridgeOptions, storageOptions, templateOptions, validateProfileOptions, prepareNetwork, networkInputSchema } from '../../lib/pve-options';
 import { taskPage, auditPage } from '../../lib/activity';
 import { cancelNetworkTask, retryTask } from '../../lib/task-recovery';
+import { guides, removeGuide, saveGuide } from '../../lib/guides';
 
 export default api(async event => {
   const user = await actor(event, 'admin');
@@ -24,6 +25,7 @@ export default api(async event => {
     if (action === 'tasks' && id === 'batch') return batchStatus(operation);
     if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'settings') return safeSettings();
+    if (action === 'guides') return id ? guides().find(guide => guide.id === id) || ensure(false, 404, '指导书不存在') : guides();
     if (action === 'gost' && id === 'authorization') {
       const settings = getSettings();
       ensure(settings.gostUser && settings.gostPassword, 409, '请先配置 gost API 用户名和密码');
@@ -67,6 +69,9 @@ export default api(async event => {
       };
     }
   }
+  if (event.req.method === 'DELETE' && action === 'guides' && id) {
+    ensure(guides().some(guide => guide.id === id), 404, '指导书不存在'); removeGuide(id); audit(user.sub, 'guide.delete', id); return { ok: true };
+  }
   if (event.req.method === 'DELETE' && ['profiles', 'networks'].includes(action) && id) {
     removeCatalog(action as 'profiles' | 'networks', id); return { ok: true };
   }
@@ -76,6 +81,10 @@ export default api(async event => {
     ensure(!['gostApi', 'gostUser', 'gostPassword'].some(key => Object.hasOwn(patch, key)), 400, 'API 地址与凭据请通过保存并同步到宿主机修改');
     const settings = settingsSchema.parse({ ...getSettings(), ...patch });
     validateSettings(settings); saveSettings(settings); audit(user.sub, 'settings.save'); return safeSettings();
+  }
+  if (action === 'guides') {
+    ensure(!id || guides().some(guide => guide.id === id), 404, '指导书不存在');
+    const guide = saveGuide(await body(event, z.record(z.string(), z.unknown())), id); audit(user.sub, id ? 'guide.update' : 'guide.create', guide.id); return guide;
   }
   if (action === 'students') {
     if (id === 'batch') return studentBatch(user, await body(event, z.record(z.string(), z.unknown())));

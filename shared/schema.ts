@@ -71,6 +71,12 @@ export const forwardSchema = z.object({
   note: z.string().trim().max(100).default(''),
 });
 export type ForwardInput = z.infer<typeof forwardSchema>;
+export const guideSchema = z.object({
+  title: text.max(200), markdown: z.string().max(200000), sortOrder: z.coerce.number().int().min(0).max(100000).default(0),
+  defaultCollapsed: z.boolean().default(true), published: z.boolean().default(false),
+});
+export type GuideInput = z.infer<typeof guideSchema>;
+export interface Guide extends GuideInput { id: string; createdAt: number; updatedAt: number }
 export type Actor = { role: 'admin' | 'student'; sub: string; sessionId: string };
 export type TaskState = 'queued' | 'running' | 'failed' | 'succeeded' | 'attention';
 export type ResourceState = 'reserved' | 'creating' | 'configuring' | 'ready' | 'rebuilding' | 'deleting' | 'failed';
