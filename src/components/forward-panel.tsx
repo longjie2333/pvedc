@@ -22,11 +22,12 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
   const ports = useQuery({ queryKey: ['forward-ports', resource?.id], queryFn: () => request<Sample<ListeningPort[]>>('me/ports'),
     enabled: !admin && open && resource?.state === 'ready', refetchInterval: open && !admin ? 15000 : false });
   const options = useMemo<PortChoice[]>(() => [...(ports.data?.data || []).map(target => {
-    const address = ipaddr.isValid(target.address) ? ipaddr.process(target.address) : null;
+    const displayAddress = target.address.replace(/%[^\s]+$/, '');
+    const address = ipaddr.isValid(displayAddress) ? ipaddr.process(displayAddress) : null;
     const disabled = address?.range() === 'loopback' || (address?.kind() === 'ipv6' && address.range() !== 'unspecified');
     const processes = [...new Set(target.processes.map(process => process.name))].join(', ') || '未知进程';
     return { value: target.protocol + '|' + target.address + '|' + target.port, label: String(target.port), target, disabled,
-      description: target.protocol.toUpperCase() + ' · ' + target.address + ' · ' + processes + (disabled ? ' · 无法通过容器 IPv4 转发' : '') };
+      description: target.protocol.toUpperCase() + ' · ' + displayAddress + ' · ' + processes + (disabled ? ' · 无法通过容器 IPv4 转发' : '') };
   }), manual], [ports.data?.data]);
   const choice = options.find(option => option.value === selected);
   const custom = admin || selected === 'manual';
