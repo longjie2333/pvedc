@@ -118,7 +118,7 @@ Web 入口拓扑：
                          PVE gost → 127.0.0.1:3000
 ```
 
-公网转发页生成匹配的 Caddy、Nginx Proxy Manager 上游参数和 Relay 配置示例。公网防火墙放行 HTTPS、Relay 连接端口及管理员划定的学生端口池。Web 通道默认只监听回环地址；反向代理在 Docker 中时，可将 Web 绑定地址设为其 Docker 网络网关。也支持 `0.0.0.0` 监听所有 IPv4 接口；此时宿主机反代连接 `127.0.0.1`，容器反代连接对应网络的宿主机网关。gost 管理 API 默认在 PVE 侧监听回环地址。
+公网转发页生成 Caddy、Nginx Proxy Manager 上游参数和 Relay 配置示例。公网防火墙放行 HTTPS、Relay 连接端口及管理员划定的学生端口池。Web 绑定地址属于 Relay 所在的网络环境，支持 `0.0.0.0` 监听所有 IPv4 接口。Relay 在宿主机运行时，同机反代连接回环地址，Docker 反代连接宿主机网关；Relay 在 Docker 桥接网络运行时，建议绑定 `0.0.0.0`，同网络反代连接 Relay 容器名，网络外访问需要映射 Web 端口。学生端口池需要分别映射 TCP、UDP，调整平台端口池不会自动修改公网 Docker 或安全组。Caddy 示例按同宿主机部署生成，容器部署时需替换上游。gost 管理 API 默认在 PVE 侧监听回环地址。
 
 TLS 认证必须启用；自签 CA 可在 Web 中填写 PEM，平台保存本机 CA 文件并交给 gost 校验。学生只填写自己的容器端口，后端固定目标为该学生的分配 IP。
 

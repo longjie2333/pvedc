@@ -58,5 +58,5 @@ function Templates() {
 }
 function Deployment() {
   const data = useQuery({ queryKey: ['deployment'], queryFn: () => request<{ caddy: string; relay: unknown; proxy: {scheme:string; host:string | null; port:number}; notes: string }>('admin/deployment') });
-  return <Panel title="公网服务器配置" detail="将以下配置用于公网服务器上的 Caddy 与 gost。"><Feedback error={data.error?.message}/>{data.data && <div className="p-6 flex flex-col gap-4"><div className="subtle-note">{data.data.proxy.host ? `Nginx Proxy Manager 上游：${data.data.proxy.scheme}://${data.data.proxy.host}:${data.data.proxy.port}` : `Nginx Proxy Manager 上游：填写公网宿主机的 Docker 网关地址，HTTP 端口 ${data.data.proxy.port}`}，启用 WebSocket 支持。</div><pre>{data.data.caddy}</pre><pre>{JSON.stringify(data.data.relay, null, 2)}</pre><p>{data.data.notes}</p></div>}</Panel>;
+  return <Panel title="公网服务器配置" detail="将以下配置用于公网服务器上的 Caddy 与 gost。"><Feedback error={data.error?.message}/>{data.data && <div className="p-6 flex flex-col gap-4"><div className="subtle-note">{data.data.proxy.host ? `Nginx Proxy Manager 上游：${data.data.proxy.scheme}://${data.data.proxy.host}:${data.data.proxy.port}` : `Nginx Proxy Manager 上游：填写反代可达的 Relay 地址（同一 Docker 网络可使用容器名），HTTP 端口 ${data.data.proxy.port}`}，启用 WebSocket 支持。</div><pre>{data.data.caddy}</pre><pre>{JSON.stringify(data.data.relay, null, 2)}</pre><p>{data.data.notes}</p></div>}</Panel>;
 }
