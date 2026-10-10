@@ -5,7 +5,7 @@ import { meta } from './db';
 type HelperRequest = { operation: 'bootstrap' | 'ports'; vmid: number } | { operation: 'password'; vmid: number; password: string } | { operation: 'sdn-lock'; token?: string } | { operation: 'gost-restart' };
 export function helper<T>(request: HelperRequest): Promise<T> {
   return new Promise((resolve, reject) => {
-    const child = spawn('sudo', ['-n', '/usr/local/libexec/pvedc-helper'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn('sudo', ['-n', '--', process.env.PDC_HELPER_PATH || '/usr/local/libexec/pvedc-helper'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let output = '', settled = false;
     const timeout = setTimeout(() => { child.kill(); finish(new AppError(502, '本机辅助操作超时')); }, request.operation === 'bootstrap' ? 300000 : 30000);
     const finish = (error?: Error) => {

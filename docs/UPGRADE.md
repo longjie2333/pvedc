@@ -61,3 +61,11 @@
 - API 更新任务阶段：pending → api-apply → api-verify → 完成；失败转 api-rollback，恢复成功后任务失败且可重新提交，恢复失败则保留 attention 检查点。配置快照在 SQLite job.secret 中加密保存。
 - 下一批实现 PVE 选项、规格 Combobox、宿主监控、学生批量操作、结构化监听端口和对象 Select；之后执行隔离真实联调、最终组件验收与部署。
 - 本轮尚未部署到 PVE。真实联调须使用隔离数据和专用资源，保留正式数据与原有待处理任务；最终部署覆盖线上代码差异。
+
+### 真实联调隔离安排
+
+- 使用 `/opt/pvedc-upgrade-stage`、`/var/lib/pvedc-upgrade-test`、独立 `pvedc-upgrade` / `pvedc-upgrade-gost` 服务和本机 3111 端口，先检查路径/端口没有被其他任务使用。
+- 测试 helper 单独安装为 root 所有的 `/usr/local/libexec/pvedc-upgrade-helper`，仅将固定 gost 服务名改为测试服务。测试进程通过仅部署环境可设置的 `PDC_HELPER_PATH` 指向它，sudoers 单独授权此固定路径，避免旧正式 helper 与新端口协议混用。
+- 读取现有 PVE/Relay 凭据仅用于初始化私有测试配置，生成独立测试管理员密钥、数据库及加密主密钥，不复制正式名单/会话。容器 helper 的安装身份保持一致，测试 VMID 使用已确认空闲的 990000 段，并在每次清理前验证测试学号和 VMID。
+- 正式公网域名为 `lxc.longjie233.top`；正式三个公网端口为 50806、50516、50702。测试优先使用 11010（Web）、11009（TCP）、11008（UDP），操作前再次检查未占用。
+- 真实用例应包含 Debian NAT、Ubuntu 现有 VNet 桥接、结构化监听、宿主指标、gost API 同步/恢复、0.0.0.0 Web 监听、公网 TCP/UDP 和批量删除；清理测试资源后再备份与部署正式版本。
