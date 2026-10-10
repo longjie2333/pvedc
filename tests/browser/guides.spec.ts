@@ -21,3 +21,20 @@ test('administrator can create and publish a Milkdown guide', async ({ page }) =
   await expect(page.getByText('浏览器验收指南', { exact: true })).toHaveCount(2);
 });
 
+
+test('student sees published guides as collapsible rendered content', async ({ page }) => {
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/session') return route.fulfill({ json: { actor: { role: 'student', sub: 'a00123', sessionId: 'student-test' }, initialized: true, title: '指南测试' } });
+    if (path === '/api/me/overview') return route.fulfill({ json: { student: { id: 'a00123', name: '测试同学', profileId: null }, resource: undefined, forwards: [], publicHost: 'relay.test', profiles: [], selfSelection: false } });
+    if (path === '/api/me/guides') return route.fulfill({ json: { guides: [{ id: 'guide-1', title: '连接指南', html: '<p>内网地址：172.20.0.10</p><p>该 22 端口未转发</p>', defaultCollapsed: true, sortOrder: 1 }] } });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '使用指南', exact: true })).toBeVisible();
+  const trigger = page.getByRole('button', { name: '连接指南', exact: true });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(page.getByText('内网地址：172.20.0.10', { exact: true })).toBeVisible();
+  await expect(page.getByText('该 22 端口未转发', { exact: true })).toBeVisible();
+});
