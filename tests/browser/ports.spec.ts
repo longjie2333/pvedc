@@ -25,6 +25,7 @@ async function mockWorkspace(page: Page, role: 'student' | 'admin') {
       rules.push({ ...body, id: 'forward-' + submissions.length, publicPort: 11000 + submissions.length, enabled: true, state: 'ready' });
       json = { id: 'forward-' + submissions.length };
     } else if (path === '/api/me/tasks') json = { items: [], total: 0, page: 1, pageSize: 20 };
+    else if (path === '/api/me/guides') json = { guides: [] };
     else json = { data: null, error: null, updatedAt: Date.now() };
     return route.fulfill({ json });
   });
@@ -34,7 +35,7 @@ async function mockWorkspace(page: Page, role: 'student' | 'admin') {
 test('student ports are fetched only in the forwarding dialog and object selection carries the protocol', async ({ page }) => {
   const workspace = await mockWorkspace(page, 'student');
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '测试同学，欢迎回来' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /a00123/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: '系统监听端口' })).toHaveCount(0);
   expect(workspace.portReads()).toBe(0);
   await page.getByRole('button', { name: '添加转发', exact: true }).click();
