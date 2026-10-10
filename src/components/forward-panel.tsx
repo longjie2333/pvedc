@@ -31,7 +31,7 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
   const choice = options.find(option => option.value === selected);
   const custom = admin || selected === 'manual';
   return <Panel title="公网端口转发" detail="将容器中的服务映射到公网端口" action={resource && <Button type="button" disabled={resource.state !== 'ready'} onClick={() => { setSelected(''); setProtocol('tcp'); setTargetPort(''); setOpen(true); }}><Plus/>添加转发</Button>}>
-    <Feedback error={command.error}/>
+    {!open && <Feedback error={command.error}/>}
     {rules.length ? <Table><TableHeader><TableRow><TableHead>公网入口</TableHead><TableHead>容器端口</TableHead><TableHead>状态</TableHead><TableHead>备注</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>
       {rules.map(rule => <TableRow key={rule.id}><TableCell><div className="mono">{publicHost || '未设置公网地址'}:{rule.publicPort}</div><small>{rule.protocol.toUpperCase()}</small></TableCell>
         <TableCell className="mono">{rule.targetPort}</TableCell><TableCell><Status state={rule.state}/>{rule.error && <div className="text-xs text-destructive-foreground">{rule.error}</div>}</TableCell><TableCell>{rule.note || '—'}</TableCell><TableCell><div className="flex gap-1">
