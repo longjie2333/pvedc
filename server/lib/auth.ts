@@ -1,11 +1,9 @@
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { generateSecret, generateURI, generateSync, verifySync } from 'otplib';
 import QRCode from 'qrcode';
-import { SignJWT, jwtVerify } from 'jose';
 import argon2 from 'argon2';
-import type { Actor } from '../../shared/schema';
 import { audit, getDb, meta, now, setMeta } from './db';
-import { seal, signingKey, unseal } from './crypto';
+import { seal, unseal } from './crypto';
 import { ensure } from './errors';
 
 export const hashPassword = (password: string) => argon2.hash(password, { type: argon2.argon2id, memoryCost: 65536, timeCost: 3, parallelism: 1 });
@@ -80,28 +78,3 @@ export function checkAdminOtp(code: string) {
     setMeta('totp_last_step', String('timeStep' in result ? result.timeStep : Math.floor(now() / 30)));
   }).immediate();
 }
-
-export async function issueSession(role: Actor['role'], subject: string) {
-  const id = randomUUID();
-  const exp = now() + 3600;
-  const token = await new SignJWT({ role }).setProtectedHeader({ alg: 'HS256' }).setIssuer('pvedc')
-    .setAudience('pvedc-web').setSubject(subject).setJti(id).setIssuedAt().setExpirationTime(exp).sign(signingKey());
-  getDb().prepare('DELETE FROM sessions WHERE expires_at<=?').run(now());
-  getDb().prepare('INSERT INTO sessions(id,role,subject,expires_at) VALUES(?,?,?,?)').run(id, role, subject, exp);
-  return { token, expiresAt: exp, actor: { role, sub: subject, sessionId: id } as Actor };
-}
-export async function authenticate(token?: string): Promise<Actor | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, signingKey(), { algorithms: ['HS256'], issuer: 'pvedc', audience: 'pvedc-web' });
-    if (!payload.jti || !payload.sub || !['admin', 'student'].includes(String(payload.role))) return null;
-    const row = getDb().prepare('SELECT * FROM sessions WHERE id=? AND expires_at>?').get(payload.jti, now()) as { role: string; subject: string } | undefined;
-    if (!row || row.subject !== payload.sub || row.role !== payload.role) return null;
-    if (row.role === 'student') {
-      const student = getDb().prepare('SELECT enabled FROM students WHERE id=?').get(row.subject) as { enabled: number } | undefined;
-      if (!student?.enabled) return null;
-    }
-    return { role: row.role as Actor['role'], sub: row.subject, sessionId: payload.jti };
-  } catch { return null; }
-}
-export function revokeSubject(subject: string) { getDb().prepare('DELETE FROM sessions WHERE subject=? AND role=?').run(subject, 'student'); }

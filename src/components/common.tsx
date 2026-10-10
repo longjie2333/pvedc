@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Inbox, LoaderCircle } from 'lucide-react';
-import { Field, FieldLabel, FieldDescription } from './ui/field';
+import { Field, FieldLabel, FieldDescription, FieldError } from './ui/field';
 import { Input } from './ui/input';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
@@ -8,11 +8,11 @@ import { Dialog, DialogClose, DialogFooter, DialogHeader, DialogPanel, DialogPop
 import { Button } from './ui/button';
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from './ui/alert-dialog';
 
-export function TextField({ label, hint, ...props }: ComponentProps<typeof Input> & { label: string; hint?: string }) {
-  return <Field name={props.name}><FieldLabel>{label}</FieldLabel><Input {...props}/>{hint && <FieldDescription>{hint}</FieldDescription>}</Field>;
+export function TextField({ label, hint, type = 'text', ...props }: ComponentProps<typeof Input> & { label: string; hint?: string }) {
+  return <Field name={props.name}><FieldLabel>{label}</FieldLabel><Input type={type} {...props}/>{hint && <FieldDescription>{hint}</FieldDescription>}<FieldError/></Field>;
 }
-export function Choice({ label, value, onChange, items, name, disabled }: { label: string; value: string; onChange: (value: string) => void; items: { value: string; label: string }[]; name?: string; disabled?: boolean }) {
-  return <Field name={name}><FieldLabel>{label}</FieldLabel><Select items={items} name={name} value={value} onValueChange={v => onChange(String(v ?? ''))} disabled={disabled}><SelectTrigger className="w-full"><SelectValue/></SelectTrigger><SelectPopup>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectPopup></Select></Field>;
+export function Choice({ label, value, onChange, items, name, disabled }: { label: string; value: string; onChange: (value: string) => void; items: { value: string; label: string; disabled?: boolean }[]; name?: string; disabled?: boolean }) {
+  return <Field name={name}><FieldLabel>{label}</FieldLabel><Select items={items} name={name} value={value} onValueChange={v => onChange(String(v ?? ''))} disabled={disabled}><SelectTrigger className="w-full"><SelectValue/></SelectTrigger><SelectPopup>{items.map(item => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectPopup></Select></Field>;
 }
 export function Feedback({ error, message }: { error?: string; message?: string }) {
   if (!error && !message) return null;
@@ -20,7 +20,7 @@ export function Feedback({ error, message }: { error?: string; message?: string 
 }
 export function Loading() { return <div className="empty"><LoaderCircle className="size-6 animate-spin"/><p>正在读取数据…</p></div>; }
 export function Empty({ title = '暂无记录', children }: { title?: string; children?: ReactNode }) { return <div className="empty"><Inbox className="size-8" aria-hidden="true"/><h3>{title}</h3>{children && <p>{children}</p>}</div>; }
-export const stateNames: Record<string, string> = { ready: '已就绪', reserved: '已预留', creating: '创建中', configuring: '初始化中', rebuilding: '重建中', deleting: '回收中', failed: '失败', running: '运行中', stopped: '已停止', queued: '排队中', succeeded: '已完成', attention: '需要处理', pending: '待应用', paused: '已暂停', unknown: '状态未知', listening: '监听中', closed: '已关闭' };
+export const stateNames: Record<string, string> = { ready: '已就绪', reserved: '已预留', creating: '创建中', configuring: '初始化中', rebuilding: '重建中', deleting: '回收中', failed: '失败', running: '运行中', stopped: '已停止', queued: '排队中', succeeded: '已完成', attention: '需要处理', pending: '待应用', paused: '已暂停', unknown: '状态未知', unavailable: '不可用', listening: '监听中', closed: '已关闭' };
 export function Status({ state }: { state: string }) { return <Badge variant="outline" className={'state state-' + state}><span className="status-dot"/>{stateNames[state] || state}</Badge>; }
 export function PageTitle({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description: string; actions?: ReactNode }) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{actions && <div className="flex items-center gap-2">{actions}</div>}</div>;

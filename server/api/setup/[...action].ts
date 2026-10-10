@@ -1,9 +1,10 @@
+import { issueSession } from '../../lib/sessions';
 import { randomUUID } from 'node:crypto';
 import { getCookie, setCookie } from 'nitro/h3';
 import { z } from 'zod';
 import { otp } from '../../../shared/schema';
-import { api, body, clientIp, cookieSecurity, sessionCookie } from '../../lib/http';
-import { beginSetup, finishSetup, initialized, issueSession, rateLimit } from '../../lib/auth';
+import { api, body, clientIp, cookieSecurity, sessionCookies } from '../../lib/http';
+import { beginSetup, finishSetup, initialized, rateLimit } from '../../lib/auth';
 import { ensure } from '../../lib/errors';
 
 export default api(async event => {
@@ -21,7 +22,7 @@ export default api(async event => {
     const { code } = await body(event, z.object({ code: otp }));
     finishSetup(owner, code);
     const session = await issueSession('admin', 'admin');
-    sessionCookie(event, session.token);
+    sessionCookies(event, session);
     return { actor: session.actor, expiresAt: session.expiresAt };
   }
   ensure(false, 404, '接口不存在');

@@ -2,7 +2,8 @@ import { defineHandler, type H3Event } from 'nitro';
 import { assertBodySize, getCookie, getRequestIP, getRequestURL, setCookie } from 'nitro/h3';
 import { ZodError, type ZodType } from 'zod';
 import type { Actor } from '../../shared/schema';
-import { authenticate } from './auth';
+import { authenticateAccess, type SessionTokens } from './sessions';
+import { now } from './db';
 import { AppError, ensure } from './errors';
 import { getSettings } from './settings';
 
@@ -49,11 +50,12 @@ export async function body<T>(event: H3Event, schema: ZodType<T>): Promise<T> {
   return schema.parse(value);
 }
 export async function actor(event: H3Event, role?: Actor['role']) {
-  const user = await authenticate(getCookie(event, 'pvedc_session'));
-  ensure(user, 401, '登录已失效，请重新登录');
+  const user = (await authenticateAccess(getCookie(event, 'pvedc_session')))?.actor;
+  ensure(user, 401, '登录已失效，请重新登录', 'AUTH_REQUIRED');
   ensure(!role || user.role === role, 403, '没有权限执行此操作');
   return user;
 }
-export function sessionCookie(event: H3Event, token: string, maxAge = 3600) {
-  setCookie(event, 'pvedc_session', token, { ...cookieSecurity(event), path: '/', maxAge });
+export function sessionCookies(event: H3Event, session?: SessionTokens) {
+  setCookie(event, 'pvedc_session', session?.token || '', { ...cookieSecurity(event), path: '/', maxAge: session ? Math.max(0, session.expiresAt - now()) : 0 });
+  setCookie(event, 'pvedc_refresh', session?.refreshToken || '', { ...cookieSecurity(event), path: '/api/auth', maxAge: session ? Math.max(0, session.refreshExpiresAt - now()) : 0 });
 }

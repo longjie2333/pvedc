@@ -52,7 +52,7 @@ export const settingsSchema = z.object({
   publicHost: z.string().trim().max(253).default(''),
   portStart: port.default(20000), portEnd: port.default(29999),
   reservedPorts: z.array(port).default([]), forwardQuota: z.coerce.number().int().min(0).max(100).default(5),
-  webBindHost: z.ipv4().refine(v => ipaddr.IPv4.isValid(v) && ['private', 'loopback'].includes(ipaddr.IPv4.parse(v).range()), 'Web 通道必须绑定回环或私网地址').default('127.0.0.1'), webTunnelPort: port.default(18081), webLocalPort: port.default(3000),
+  webBindHost: z.ipv4().refine(v => v === '0.0.0.0' || ['private', 'loopback'].includes(ipaddr.IPv4.parse(v).range()), 'Web 通道需绑定 0.0.0.0、回环或私网地址').default('127.0.0.1'), webTunnelPort: port.default(18081), webLocalPort: port.default(3000),
 }).refine(s => s.vmidStart <= s.vmidEnd, 'VMID 范围不正确')
   .refine(s => s.portStart <= s.portEnd, '公网端口范围不正确')
   .refine(s => !s.publicOrigin || new URL(s.publicOrigin).pathname === '/', '公网地址不能包含路径');
@@ -74,7 +74,7 @@ export type ForwardInput = z.infer<typeof forwardSchema>;
 export type Actor = { role: 'admin' | 'student'; sub: string; sessionId: string };
 export type TaskState = 'queued' | 'running' | 'failed' | 'succeeded' | 'attention';
 export type ResourceState = 'reserved' | 'creating' | 'configuring' | 'ready' | 'rebuilding' | 'deleting' | 'failed';
-export interface Student extends StudentInput { claimed: boolean; createdAt: number; resource: Resource | null }
+export interface Student extends StudentInput { claimed: boolean; deleting: boolean; createdAt: number; resource: Resource | null }
 export interface Profile extends ProfileSpec { id: string }
 export interface Network extends NetworkSpec { id: string; ready: boolean; error: string | null }
 export interface Resource {
@@ -89,5 +89,5 @@ export interface Forward {
   id: string; studentId: string; resourceId: string; protocol: 'tcp' | 'udp'; targetPort: number;
   publicPort: number; note: string; enabled: boolean; state: string; error: string | null;
 }
-export interface ListeningPort { protocol: 'tcp' | 'udp'; address: string; port: number; process: string }
+export interface ListeningPort { protocol: 'tcp' | 'udp'; address: string; port: number; processes: { name: string; pid: number }[] }
 export interface Capacity { count: number; limits: { cpu: number; memory: number; disk: number; ip: number; vmid: number }; limiting: string[] }

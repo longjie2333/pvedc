@@ -6,16 +6,16 @@ import { dataDir } from './db';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { X509Certificate } from 'node:crypto';
+import { gostEndpoint, type GostApiSettings } from '../../shared/gost';
 
 interface GostResponse<T> { code: number; msg?: string; data?: T }
 interface Service { name: string; status?: { state: string; events?: { msg: string }[] }; [key: string]: unknown }
 export const gostPrefix = () => 'pvedc-' + meta('instance_id')!.slice(0, 8) + '-';
-export async function gost<T>(path: string, method = 'GET', data?: unknown): Promise<T> {
-  const settings = getSettings();
+export async function gost<T>(path: string, method = 'GET', data?: unknown, settings: GostApiSettings = getSettings(), timeoutMs = 15000): Promise<T> {
   ensure(settings.gostPassword, 409, '请先配置 gost API 认证');
   let response;
   try {
-    response = await fetch(settings.gostApi.replace(/\/$/, '') + path, { method, signal: AbortSignal.timeout(15000),
+    response = await fetch(gostEndpoint(settings.gostApi).connectUrl + path, { method, signal: AbortSignal.timeout(timeoutMs),
       headers: { Authorization: 'Basic ' + Buffer.from(settings.gostUser + ':' + settings.gostPassword).toString('base64'), 'Content-Type': 'application/json' },
       body: data === undefined ? undefined : JSON.stringify(data),
     });
@@ -28,10 +28,14 @@ export async function gost<T>(path: string, method = 'GET', data?: unknown): Pro
   if (path === '/config' && method === 'GET') return result as T;
   return result.data as T;
 }
+export function gostApiUpdating() {
+  return !!getDb().prepare("SELECT id FROM jobs WHERE type='gost-api-update' AND state IN ('queued','running','attention')").get();
+}
 async function upsert(path: string, name: string, value: unknown, existing: boolean) {
   await gost(existing ? path + '/' + encodeURIComponent(name) : path, existing ? 'PUT' : 'POST', value);
 }
 export async function configureGost() {
+  ensure(!gostApiUpdating(), 409, 'gost API 正在同步或恢复，请稍后应用公网配置');
   const s = getSettings(), prefix = gostPrefix(), chain = prefix + 'relay';
   ensure(s.relayHost && s.relayUser && s.relayPassword && s.relayServerName, 400, '请填写 Relay 地址、认证及 TLS 服务名');
   let caFile: string | undefined;
@@ -52,6 +56,7 @@ export async function configureGost() {
   await gost('/config?format=json', 'POST');
 }
 export async function syncForwards(resourceId?: string, pause = false) {
+  ensure(!gostApiUpdating(), 409, 'gost API 正在同步或恢复，请稍后重试转发操作');
   const existing = await gost<{ list: Service[] }>('/config/services');
   const prefix = gostPrefix();
   const rules = forwards().filter(f => !resourceId || f.resourceId === resourceId);

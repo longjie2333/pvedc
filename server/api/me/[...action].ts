@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { api, actor, body } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { forwards, profiles, resources, students, tasks } from '../../lib/records';
+import { forwards, profiles, resources, students, taskForActor } from '../../lib/records';
 import { getSettings } from '../../lib/settings';
 import { allocate, changeForward, createForward, resourceAction } from '../../lib/provision';
 import { forwardSchema, password } from '../../../shared/schema';
 import { history, monitor } from '../../lib/monitor';
+import { taskPage } from '../../lib/activity';
 import { retryTask } from '../../lib/task-recovery';
 
 export default api(async event => {
@@ -13,9 +14,10 @@ export default api(async event => {
   const [, , , action, id, operation] = event.url.pathname.split('/');
   const resource = resources().find(r => r.studentId === user.sub);
   if (event.req.method === 'GET') {
+    if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'overview') {
       const settings = getSettings();
-      return { student: students().find(s => s.id === user.sub), resource, tasks: tasks(user.sub), forwards: forwards(user.sub),
+      return { student: students().find(s => s.id === user.sub), resource, forwards: forwards(user.sub),
         publicHost: settings.publicHost, selfSelection: settings.selfSelection, defaultProfileId: settings.defaultProfileId,
         profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name })),
         forwarding: { quota: settings.forwardQuota, portStart: settings.portStart, portEnd: settings.portEnd },

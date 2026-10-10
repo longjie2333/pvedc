@@ -4,6 +4,7 @@ import { getDb, now, audit } from './db';
 import { ensure } from './errors';
 import { seal } from './crypto';
 import { hashPassword, verifyPassword } from './auth';
+import { revokeSubject } from './sessions';
 import { getSettings } from './settings';
 import { forwards, profiles, resources, type StudentRow } from './records';
 import { selectProfile } from './allocation';
@@ -51,11 +52,12 @@ export async function allocate(studentId: string, password: string, selected?: s
 }
 
 export async function resourceAction(user: Actor, id: string, action: string, input: { password?: string; newPassword?: string; confirmation?: string }) {
+  const reclaiming = action === 'reclaim' || action === 'student-delete';
   const resource = resources().find(r => r.id === id);
   ensure(resource && (user.role === 'admin' || resource.studentId === user.sub), 404, '资源不存在');
-  ensure(['start', 'shutdown', 'reboot', 'rebuild', 'password', 'reclaim'].includes(action), 400, '不支持的操作');
-  ensure(action !== 'reclaim' || user.role === 'admin', 403, '仅管理员可回收资源');
-  if (['rebuild', 'reclaim'].includes(action)) ensure(input.confirmation === resource.studentId, 400, '请输入学号以确认清空数据');
+  ensure(['start', 'shutdown', 'reboot', 'rebuild', 'password', 'reclaim', 'student-delete'].includes(action), 400, '不支持的操作');
+  ensure(!reclaiming || user.role === 'admin', 403, '仅管理员可回收资源');
+  if (action === 'rebuild' || reclaiming) ensure(input.confirmation === resource.studentId, 400, '请输入学号以确认清空数据');
   if (['password', 'rebuild'].includes(action) && user.role !== 'admin') {
     const row = getDb().prepare('SELECT password_hash FROM students WHERE id=?').get(user.sub) as { password_hash: string };
     ensure(input.password && await verifyPassword(row.password_hash, input.password), 401, '当前密码不正确');
@@ -67,7 +69,7 @@ export async function resourceAction(user: Actor, id: string, action: string, in
   }
   if (action === 'rebuild') ensure(input.newPassword || input.password, 400, '请输入重建后的密码');
   const active = getDb().prepare("SELECT id,state,step,upid FROM jobs WHERE resource_id=? AND state IN ('queued','running','attention')").get(id) as { id: string; state: string; step: string; upid: string | null } | undefined;
-  if (active && action === 'reclaim') {
+  if (active && reclaiming) {
     ensure(active.state === 'attention', 409, '请等待正在执行的任务完成');
     ensure(active.step !== 'create-wait' || active.upid, 409, '创建请求结果未知，请先重试任务以核对 PVE 状态');
     const running = await pve<unknown[]>(nodePath() + '/tasks', 'GET', { vmid: resource.vmid, source: 'active' });
@@ -78,11 +80,16 @@ export async function resourceAction(user: Actor, id: string, action: string, in
     }
   }
   const result = getDb().transaction(() => {
-    if (active && action === 'reclaim') {
+    if (active && reclaiming) {
       const changed = getDb().prepare("UPDATE jobs SET state='failed',error='管理员已转入资源回收',secret=NULL,updated_at=? WHERE id=? AND state='attention'").run(now(), active.id);
       ensure(changed.changes === 1, 409, '任务状态已变化，请刷新重试');
     }
-    return enqueue(action, resource.studentId, id, {}, input.newPassword || input.password);
+    const task = enqueue(action, resource.studentId, id, {}, input.newPassword || input.password);
+    if (action === 'student-delete') {
+      getDb().prepare('UPDATE students SET enabled=0 WHERE id=?').run(resource.studentId);
+      revokeSubject(resource.studentId);
+    }
+    return task;
   }).immediate();
   audit(user.sub, 'resource.' + action, id);
   return result;

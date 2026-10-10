@@ -13,7 +13,8 @@
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vite build && vitest run",
+    "test": "vite build && vitest run && pnpm test:helper",
+    "test:helper": "node tests/run-python-tests.mjs",
     "test:e2e": "vite build && playwright test"
   },
   "pnpm": {

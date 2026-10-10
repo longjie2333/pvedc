@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 管理员使用 TOTP 登录；首次访问生成文本密钥和二维码，JWT 会话固定一小时。
+- 管理员使用 TOTP 登录；首次访问生成文本密钥和二维码，使用访问/刷新双 JWT：访问有效一小时，七天内自动续期。
 - 学生名单、CSV / 表格粘贴导入、指定配置、学号认领和密码登录。
 - 多套资源规格、默认配置、管理员控制的学生自选模式。
 - PVE 原生 LXC 创建：学号主机名、root 密码、静态 IPv4、Ubuntu / Debian。
@@ -89,11 +89,13 @@ bash /opt/pvedc/deploy/install.sh
 | `PDC_GOST_API` / `PDC_GOST_USER` / `PDC_GOST_PASSWORD` | 本机 gost API |
 | `PDC_PUBLIC_ORIGIN` | 公网 HTTPS 入口，例如 `https://compute.example.edu` |
 
-平台密码使用 Argon2id；连接凭据和临时任务密码使用 AES-256-GCM。JWT 保存在 HttpOnly Cookie 中，同时通过数据库会话实现退出、禁用和改密后的撤销。
+平台密码使用 Argon2id；连接凭据和临时任务密码使用 AES-256-GCM。访问和刷新 JWT 分别保存在 HttpOnly Cookie 中；刷新 token 每次轮换，登录最长七天。通过数据库会话实现退出、禁用、改密和 TOTP 重绑后的即时撤销；过期刷新 token 的重用会撤销对应会话。
+
+PVE API token 如果启用权限分离，除所属用户的授权外，还需为 token 单独授予平台的 `DistributionCenter` 角色；只授权用户会导致宿主指标返回 403、资源选项为空。已有安装的 `pvedc@pve!web` 可执行 `pveum acl modify / -tokens 'pvedc@pve!web' -roles DistributionCenter`，token 的有效权限仍受所属用户权限限制。
 
 完整配置导入在单个事务内完成，只运行一次，不执行宿主网络变更。首次导入保持 `registrationOpen:false`，管理员在 Web 应用网络后再开放申请。初始设置优先级为：安装器文件 → `PDC_INITIAL_SETTINGS` → `PDC_INITIAL_CONFIG.settings` → 单项环境变量。
 
-默认一人一台 LXC、IPv4、学生及管理员一小时会话、每人五条转发、CPU 不超分。默认保留宿主 2 CPU、4096 MiB 内存及每个使用存储 10 GiB，可通过 Web 调整。
+默认一人一台 LXC、IPv4、学生及管理员七天登录期限（一小时访问 token）、每人五条转发、CPU 不超分。默认保留宿主 2 CPU、4096 MiB 内存及每个使用存储 10 GiB，可通过 Web 调整。
 
 ## 分配与恢复规则
 
@@ -118,9 +120,13 @@ Web 入口拓扑：
                          PVE gost → 127.0.0.1:3000
 ```
 
-公网转发页生成匹配的 Caddy、Nginx Proxy Manager 上游参数和 Relay 配置示例。公网防火墙放行 HTTPS、Relay 连接端口及管理员划定的学生端口池。Web 通道默认只监听回环地址；反向代理在 Docker 中时，可将 Web 绑定地址设为其 Docker 网络网关。只允许回环或私网地址，防止裸 HTTP 入口直接暴露到公网。gost 管理 API 在 PVE 侧只监听回环地址。
+公网转发页生成 Caddy、Nginx Proxy Manager 上游参数和 Relay 配置示例。公网防火墙放行 HTTPS、Relay 连接端口及管理员划定的学生端口池。Web 绑定地址属于 Relay 所在的网络环境，支持 `0.0.0.0` 监听所有 IPv4 接口。Relay 在宿主机运行时，同机反代连接回环地址，Docker 反代连接宿主机网关；Relay 在 Docker 桥接网络运行时，建议绑定 `0.0.0.0`，同网络反代连接 Relay 容器名，网络外访问需要映射 Web 端口。学生端口池需要分别映射 TCP、UDP，调整平台端口池不会自动修改公网 Docker 或安全组。Caddy 示例按同宿主机部署生成，容器部署时需替换上游。gost 管理 API 默认在 PVE 侧监听回环地址。
 
 TLS 认证必须启用；自签 CA 可在 Web 中填写 PEM，平台保存本机 CA 文件并交给 gost 校验。学生只填写自己的容器端口，后端固定目标为该学生的分配 IP。
+
+在“公网转发 → 本机 gost API”中修改地址、用户名和密码后，点击“保存并同步到宿主机”。后台任务保存加密恢复快照、原子更新 API 配置并重启固定的 gost 服务，验证新接口后才更新平台连接设置。失败时恢复原配置；恢复失败可在任务记录重试。留空密码保留宿主机当前密码，其他 Relay 链和服务定义不受修改。API 地址支持本机 IPv4 HTTP 地址及路径前缀，`0.0.0.0` 监听通过本机回环地址验证。
+
+管理员可按需显示或复制完整 Basic Auth 请求头；它是 Base64 编码。该值不会加入普通设置响应、审计或日志。首次安装可通过 `PDC_GOST_API`、`PDC_GOST_USER` 和 `PDC_GOST_PASSWORD` 初始化实际 gost API；已有配置在再次部署时保留。
 
 ## 运维和备份
 
@@ -141,5 +147,7 @@ journalctl -u pvedc -u pvedc-gost --since '30 minutes ago'
 此平台不提供 KVM、多节点调度、在线终端、快照或容器备份管理；如需备份学生系统盘，使用 PVE 自带备份功能。
 
 ## 当前验证进度
+
+本轮增量升级的功能清单与验证结果见 [docs/UPGRADE.md](docs/UPGRADE.md)。`pnpm test` 包含 TypeScript 集成测试和 Python helper 权限测试，开发机需要 Python 3；也可单独运行 `pnpm test:helper`。
 
 详细进度和尚未验证的行为记录在 `docs/IMPLEMENTATION.md`。功能存在不代表已经通过真实 PVE / 公网联调，请以该记录的验证证据为准。

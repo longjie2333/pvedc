@@ -51,9 +51,14 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('setup/complete', { code: '000000' }, setupCookie)).response.status).toBe(401);
     const result = await call('setup/complete', { code: generateSync({ secret }) }, setupCookie);
     expect(result.response.status).toBe(200); adminCookie = result.cookie;
-    const claims = decodeJwt(adminCookie.split('=')[1]);
+    const claims = decodeJwt(adminCookie.split('; ')[0].split('=')[1]);
     expect(claims.exp! - claims.iat!).toBe(3600);
     expect(result.response.headers.getSetCookie().join('')).toContain('HttpOnly');
+    const refreshCookie = result.response.headers.getSetCookie().find(cookie => cookie.startsWith('pvedc_refresh='))!;
+    expect(refreshCookie).toContain('Path=/api/auth');
+    expect(refreshCookie).toContain('SameSite=Strict');
+    const refreshClaims = decodeJwt(refreshCookie.split(';')[0].split('=')[1]);
+    expect(refreshClaims.exp! - refreshClaims.iat!).toBe(7 * 86400);
     expect((await call('setup/status')).json.initialized).toBe(true);
     expect((await call('setup/begin', {}, setupCookie)).response.status).toBe(409);
   });
@@ -61,12 +66,36 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('auth/admin', { code: generateSync({ secret }) })).response.status).toBe(401);
     expect((await call('admin/overview')).response.status).toBe(401);
   });
+  it('refreshes from an HttpOnly cookie and rejects cross-origin refresh', async () => {
+    const before = adminCookie;
+    expect((await call('auth/refresh', {}, before, 'https://untrusted.invalid')).response.status).toBe(403);
+    const refreshed = await call('auth/refresh', {}, before);
+    expect(refreshed.response.status).toBe(200);
+    adminCookie = refreshed.cookie;
+    expect(adminCookie).not.toBe(before);
+    expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(200);
+    const refreshOnly = adminCookie.split('; ').find(cookie => cookie.startsWith('pvedc_refresh='))!;
+    expect((await call('auth/session', undefined, refreshOnly)).json.code).toBe('AUTH_REQUIRED');
+    expect(JSON.stringify(refreshed.json)).not.toContain(refreshOnly.split('=')[1]);
+  });
   it('imports rosters transactionally and preserves leading zeros', async () => {
-    const result = await call('admin/students/import', { csv: '学号,姓名,班级\n00001234,测试同学,测试班\n00001235,第二位同学,测试班' }, adminCookie);
+    const result = await call('admin/students/import', { csv: '学号,姓名,班级\na00001234,测试同学,测试班\na00001235,第二位同学,测试班' }, adminCookie);
     expect(result.response.status).toBe(200); expect(result.json.count).toBe(2);
-    const bad = await call('admin/students/import', { csv: '学号,姓名\n00001236,第三位\n00001236,重复' }, adminCookie);
+    const bad = await call('admin/students/import', { csv: '学号,姓名\na00001236,第三位\na00001236,重复' }, adminCookie);
     expect(bad.response.status).toBe(400);
-    expect((await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id)).toEqual(['00001234', '00001235']);
+    expect((await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id)).toEqual(['a00001234', 'a00001235']);
+  });
+  it('searches the public roster by name or case-insensitive student ID', async () => {
+    const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
+    db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...JSON.parse(previous), registrationOpen: true }));
+    try {
+      const name = await call('public/roster?q=' + encodeURIComponent('第二位'));
+      expect(name.json.students.map((s: { id: string }) => s.id)).toEqual(['a00001235']);
+      expect((await call('public/roster?q=A00001234')).json.students[0].id).toBe('a00001234');
+      expect((await call('public/roster?q=' + encodeURIComponent("' OR 1=1"))).json.students).toEqual([]);
+      expect((await call('public/roster?q=' + 'x'.repeat(101))).response.status).toBe(400);
+      expect(JSON.stringify(name.json)).not.toContain('password_hash');
+    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
   });
   it('does not expose credentials through settings or store them as plaintext', async () => {
     const result = await call('admin/settings', { pveTokenSecret: 'test-sensitive-value' }, adminCookie);
@@ -82,6 +111,7 @@ describe('real HTTP authentication and authorization', () => {
     expect(complete.response.status).toBe(200);
     adminCookie = complete.cookie; secret = begin.json.secret;
     expect((await call('admin/overview', undefined, oldCookie)).response.status).toBe(401);
+    expect((await call('auth/refresh', {}, oldCookie)).response.status).toBe(401);
     expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(200);
   });
   it('preserves local administration after configuring a public HTTPS origin', async () => {
@@ -89,17 +119,85 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/settings', { title: 'Still locally accessible' }, adminCookie)).response.status).toBe(200);
     expect((await call('admin/settings', { title: 'Rejected' }, adminCookie, 'https://untrusted.invalid')).response.status).toBe(403);
   });
+  it('accepts wildcard Web binding and generates usable reverse-proxy guidance', async () => {
+    expect((await call('admin/settings', { webBindHost: '0.0.0.0' }, adminCookie)).response.status).toBe(200);
+    const deployment = await call('admin/deployment', undefined, adminCookie);
+    expect(deployment.json.caddy).toContain('reverse_proxy 127.0.0.1:');
+    expect(deployment.json.caddy).not.toContain('0.0.0.0:');
+    expect(deployment.json.proxy.host).toBeNull();
+    expect(deployment.json.notes).toContain('Docker');
+    expect((await call('admin/settings', { webBindHost: '224.0.0.1' }, adminCookie)).response.status).toBe(400);
+  });
   it('authenticates students without granting administrator access', async () => {
-    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-test-password'), '00001234');
-    const result = await call('auth/student', { studentId: '00001234', password: 'Student-test-password' });
+    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-test-password'), 'a00001234');
+    const result = await call('auth/student', { studentId: 'a00001234', password: 'Student-test-password' });
     expect(result.response.status).toBe(200); studentCookie = result.cookie;
     expect((await call('admin/overview', undefined, studentCookie)).response.status).toBe(403);
-    expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('00001234');
+    expect((await call('admin/students/batch', { ids: ['a00001235'], action: 'delete', confirmation: '删除 1 名学生' }, studentCookie)).response.status).toBe(403);
+    expect((await call('admin/host/status', undefined, studentCookie)).response.status).toBe(403);
+    expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('a00001234');
+  });
+  it('scopes task notifications to the owner and never returns task secrets', async () => {
+    const insert = db.prepare("INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,'succeeded','complete','{}','do-not-return',1,1)");
+    insert.run('owned-task', 'start', 'a00001234');
+    insert.run('other-task', 'start', 'a00001235');
+    const owned = await call('me/tasks/owned-task', undefined, studentCookie);
+    expect(owned.response.status).toBe(200);
+    expect(owned.json.id).toBe('owned-task');
+    expect(JSON.stringify(owned.json)).not.toContain('do-not-return');
+    expect((await call('me/tasks/other-task', undefined, studentCookie)).response.status).toBe(404);
+    expect((await call('admin/tasks/other-task', undefined, adminCookie)).response.status).toBe(200);
+    expect((await call('admin/tasks/other-task')).response.status).toBe(401);
+  });
+  it('serves paged activities and removes task arrays from overviews', async () => {
+    const insert = db.prepare("INSERT INTO jobs(id,type,student_id,state,step,payload,created_at,updated_at) VALUES(?,'start',?,'succeeded','complete','{}',1,1)");
+    for (let index = 0; index < 45; index++) insert.run('page-task-' + index, index % 2 ? 'a00001234' : 'a00001235');
+    const first = await call('admin/tasks?page=1&pageSize=20', undefined, adminCookie);
+    const second = await call('admin/tasks?page=2&pageSize=20', undefined, adminCookie);
+    expect(first.json.items).toHaveLength(20); expect(first.json.total).toBe(47);
+    expect(second.json.items).toHaveLength(20);
+    const own = await call('me/tasks?studentId=a00001235&pageSize=100', undefined, studentCookie);
+    expect(own.json.items.every((item: { studentId: string }) => item.studentId === 'a00001234')).toBe(true);
+    expect((await call('admin/audit', undefined, studentCookie)).response.status).toBe(403);
+    expect((await call('admin/tasks?pageSize=500', undefined, adminCookie)).response.status).toBe(400);
+    expect((await call('admin/overview', undefined, adminCookie)).json).not.toHaveProperty('tasks');
+    expect((await call('me/overview', undefined, studentCookie)).json).not.toHaveProperty('tasks');
+  });
+  it('only reveals Basic API credentials through the explicit administrator endpoint', async () => {
+    const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
+    const settings = JSON.parse(previous);
+    // Reuse the already encrypted fixture credential without introducing plaintext into storage.
+    db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...settings, gostUser: 'api-test', gostPassword: settings.pveTokenSecret }));
+    try {
+      const revealed = await call('admin/gost/authorization', undefined, adminCookie);
+      expect(revealed.json.authorization).toBe('Basic ' + Buffer.from('api-test:test-sensitive-value').toString('base64'));
+      expect(revealed.response.headers.get('cache-control')).toBe('no-store');
+      expect((await call('admin/gost/authorization', undefined, studentCookie)).response.status).toBe(403);
+      expect((await call('admin/gost/authorization')).response.status).toBe(401);
+      expect(JSON.stringify((await call('admin/settings', undefined, adminCookie)).json)).not.toContain(revealed.json.authorization);
+      expect(JSON.stringify(db.prepare('SELECT * FROM audit').all())).not.toContain(revealed.json.authorization);
+      expect(output).not.toContain(revealed.json.authorization);
+    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+  });
+  it('requires the dedicated API synchronization endpoint and encrypts pending credentials', async () => {
+    expect((await call('admin/settings', { gostUser: 'bypass-user' }, adminCookie)).response.status).toBe(400);
+    const input = { gostApi: 'http://127.0.0.1:19080', gostUser: 'new-api-user', gostPassword: 'pending-api-password' };
+    expect((await call('admin/gost/api', { ...input, gostApi: 'not-a-url' }, adminCookie)).response.status).toBe(400);
+    expect((await call('admin/gost/api', { ...input, gostApi: 'http://127.0.0.1:0' }, adminCookie)).response.status).toBe(400);
+    expect((await call('admin/gost/api', input, studentCookie)).response.status).toBe(403);
+    const result = await call('admin/gost/api', input, adminCookie);
+    expect(result.response.status).toBe(200);
+    const stored = db.prepare('SELECT payload,secret FROM jobs WHERE id=?').get(result.json.taskId) as { payload: string; secret: string };
+    expect(stored.secret).toBeTruthy();
+    expect(JSON.stringify(stored)).not.toContain(input.gostPassword);
+    expect((await call('admin/settings', undefined, adminCookie)).json.gostUser).not.toBe('new-api-user');
   });
   it('revokes disabled accounts and logout sessions immediately', async () => {
-    await call('admin/students', { id: '00001234', name: '测试同学', enabled: false }, adminCookie);
+    await call('admin/students', { id: 'a00001234', name: '测试同学', enabled: false }, adminCookie);
     expect((await call('me/overview', undefined, studentCookie)).response.status).toBe(401);
+    expect((await call('auth/refresh', {}, studentCookie)).response.status).toBe(401);
     expect((await call('auth/logout', {}, adminCookie)).response.status).toBe(200);
     expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(401);
+    expect((await call('auth/refresh', {}, adminCookie)).response.status).toBe(401);
   });
 });

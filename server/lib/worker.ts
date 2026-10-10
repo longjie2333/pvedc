@@ -1,28 +1,24 @@
-import { getDb, meta, now, audit } from './db';
+import { getDb, now, audit } from './db';
 import { resources, forwards, type FullJobRow } from './records';
 import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pve, taskStatus, type ContainerStatus } from './pve';
 import { AppError, ensure } from './errors';
 import { unseal } from './crypto';
 import { helper } from './helper';
-import { hashPassword, revokeSubject } from './auth';
-import { configureGost, refreshForwardStatus, syncForwards } from './gost';
+import { hashPassword } from './auth';
+import { revokeSubject } from './sessions';
+import { configureGost, refreshForwardStatus, syncForwards, gostApiUpdating } from './gost';
 import { applyNetwork, removeNetwork } from './network';
+import { removeCatalog } from './catalog';
+import { checkpoint, succeed } from './job-state';
+import { updateGostApi } from './gost-api';
 
-export function checkpoint(job: FullJobRow, step: string, upid: string | null = null) {
-  getDb().prepare('UPDATE jobs SET step=?,upid=?,updated_at=? WHERE id=?').run(step, upid, now(), job.id);
-  job.step = step; job.upid = upid;
-}
 async function submit(job: FullJobRow, step: string, path: string, method: string, params?: Record<string, unknown>) {
   checkpoint(job, step);
   const upid = await pve<string>(path, method, params);
   checkpoint(job, step, upid);
 }
-function succeed(job: FullJobRow) {
-  getDb().prepare("UPDATE jobs SET state=?,step=?,secret=NULL,error=NULL,payload=json_remove(payload,'$.sdnLock'),updated_at=? WHERE id=?").run('succeeded', 'complete', now(), job.id);
-  audit('system', 'task.complete', job.id);
-}
-
 export async function runJob(job: FullJobRow) {
+  if (job.type === 'gost-api-update') { await updateGostApi(job); return; }
   const payload = JSON.parse(job.payload) as Record<string, string>;
   if (job.type === 'network-apply' || job.type === 'network-remove') {
     try {
@@ -50,6 +46,11 @@ export async function runJob(job: FullJobRow) {
     if (state.status !== 'stopped') return;
     ensure(state.success, 502, '模板下载失败，请检查 PVE 下载任务'); succeed(job); return;
   }
+  if (job.type === 'student-delete' && !job.resource_id) {
+    getDb().transaction(() => { removeCatalog('students', job.student_id || payload.studentId); succeed(job); }).immediate();
+    return;
+  }
+  const reclaiming = job.type === 'reclaim' || job.type === 'student-delete';
   const resource = resources().find(r => r.id === job.resource_id);
   ensure(resource, 409, '任务资源不存在');
   const path = containerPath(resource.vmid);
@@ -89,8 +90,8 @@ export async function runJob(job: FullJobRow) {
 
   if (job.step === 'pending') {
     if (job.type === 'create') checkpoint(job, 'create');
-    if (job.type === 'rebuild' || job.type === 'reclaim') {
-      if (job.type === 'reclaim' && !await containerExists(resource.vmid)) {
+    if (job.type === 'rebuild' || reclaiming) {
+      if (reclaiming && !await containerExists(resource.vmid)) {
         const active = await pve<unknown[]>(nodePath() + '/tasks', 'GET', { vmid: resource.vmid, source: 'active' });
         ensure(!active.length, 409, 'PVE 仍有此 VMID 的活动任务，请等待完成');
         if (forwards(resource.studentId).length) await syncForwards(resource.id, true);
@@ -134,10 +135,11 @@ export async function runJob(job: FullJobRow) {
       ensure(job.upid, 409, '删除请求结果未知，容器仍然存在，请重试任务');
       return;
     }
-    if (job.type === 'reclaim') {
+    if (reclaiming) {
       getDb().transaction(() => {
         getDb().prepare('DELETE FROM forwards WHERE resource_id=?').run(resource.id);
         getDb().prepare('DELETE FROM resources WHERE id=?').run(resource.id);
+        if (job.type === 'student-delete') removeCatalog('students', resource.studentId);
         succeed(job);
       }).immediate(); return;
     }
@@ -208,14 +210,14 @@ export function startWorker() {
   timer.unref();
   let checking = false;
   const statusTimer = setInterval(async () => {
-    if (checking || !forwards().length) return;
+    if (checking || gostApiUpdating() || !forwards().length) return;
     checking = true;
     try { await refreshForwardStatus(); } catch { getDb().prepare('UPDATE forwards SET state=?,error=? WHERE enabled=1').run('unknown', '暂时无法读取 gost 状态'); }
     finally { checking = false; }
   }, 15000);
   statusTimer.unref();
   const reconcile = async () => {
-    if (busy || !forwards().length) return;
+    if (busy || gostApiUpdating() || !forwards().length) return;
     busy = true;
     try { await syncForwards(); } catch { /* Keep desired state and retry without discarding leases. */ }
     finally { busy = false; }
