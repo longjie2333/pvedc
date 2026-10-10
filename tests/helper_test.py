@@ -11,6 +11,10 @@ spec.loader.exec_module(helper)
 
 
 class GostRestartTests(unittest.TestCase):
+    def test_helper_shebang_uses_unix_line_endings(self):
+        source = pathlib.Path(__file__).resolve().parents[1] / 'deploy/pvedc-helper.py'
+        self.assertTrue(source.read_bytes().startswith(b'#!/usr/bin/python3\n'))
+
     def test_only_restarts_the_fixed_platform_service(self):
         request = {'operation': 'gost-restart', 'instanceId': 'installation', 'service': 'unrelated.service', 'command': 'untrusted'}
         with patch('sys.stdin', io.StringIO(json.dumps(request))), patch.object(pathlib.Path, 'read_text', return_value='installation\n'), patch.object(helper, 'execute') as execute:

@@ -191,3 +191,4 @@ if (phase === 'cleanup') {
 }
 
 if (phase === 'status') log('status', { verified: state.verified, cleaned: state.cleaned, students: (await overview()).students.length, resources: (await overview()).resources.length });
+if (phase === 'retry') { assert(process.argv[3], 'Task ID required'); await api('admin/tasks/' + process.argv[3] + '/retry', {}); await waitTask(process.argv[3], true); }
