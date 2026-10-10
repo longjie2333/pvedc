@@ -119,13 +119,9 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/settings', { title: 'Still locally accessible' }, adminCookie)).response.status).toBe(200);
     expect((await call('admin/settings', { title: 'Rejected' }, adminCookie, 'https://untrusted.invalid')).response.status).toBe(403);
   });
-  it('accepts wildcard Web binding and generates usable reverse-proxy guidance', async () => {
+  it('accepts wildcard Web binding while keeping deployment generation removed', async () => {
     expect((await call('admin/settings', { webBindHost: '0.0.0.0' }, adminCookie)).response.status).toBe(200);
-    const deployment = await call('admin/deployment', undefined, adminCookie);
-    expect(deployment.json.caddy).toContain('reverse_proxy 127.0.0.1:');
-    expect(deployment.json.caddy).not.toContain('0.0.0.0:');
-    expect(deployment.json.proxy.host).toBeNull();
-    expect(deployment.json.notes).toContain('Docker');
+    expect((await call('admin/deployment', undefined, adminCookie)).response.status).toBe(405);
     expect((await call('admin/settings', { webBindHost: '224.0.0.1' }, adminCookie)).response.status).toBe(400);
   });
   it('authenticates students without granting administrator access', async () => {
