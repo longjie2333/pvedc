@@ -91,6 +91,8 @@ bash /opt/pvedc/deploy/install.sh
 
 平台密码使用 Argon2id；连接凭据和临时任务密码使用 AES-256-GCM。访问和刷新 JWT 分别保存在 HttpOnly Cookie 中；刷新 token 每次轮换，登录最长七天。通过数据库会话实现退出、禁用、改密和 TOTP 重绑后的即时撤销；过期刷新 token 的重用会撤销对应会话。
 
+PVE API token 如果启用权限分离，除所属用户的授权外，还需为 token 单独授予平台的 `DistributionCenter` 角色；只授权用户会导致宿主指标返回 403、资源选项为空。已有安装的 `pvedc@pve!web` 可执行 `pveum acl modify / -tokens 'pvedc@pve!web' -roles DistributionCenter`，token 的有效权限仍受所属用户权限限制。
+
 完整配置导入在单个事务内完成，只运行一次，不执行宿主网络变更。首次导入保持 `registrationOpen:false`，管理员在 Web 应用网络后再开放申请。初始设置优先级为：安装器文件 → `PDC_INITIAL_SETTINGS` → `PDC_INITIAL_CONFIG.settings` → 单项环境变量。
 
 默认一人一台 LXC、IPv4、学生及管理员七天登录期限（一小时访问 token）、每人五条转发、CPU 不超分。默认保留宿主 2 CPU、4096 MiB 内存及每个使用存储 10 GiB，可通过 Web 调整。
