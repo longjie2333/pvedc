@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Actor, ForwardInput } from '../../shared/schema';
+import type { Actor, ForwardInput, Profile } from '../../shared/schema';
 import { getDb, now, audit } from './db';
 import { ensure } from './errors';
 import { seal } from './crypto';
@@ -10,6 +10,22 @@ import { forwards, profiles, resources, type StudentRow } from './records';
 import { selectProfile } from './allocation';
 import { budgetFor, inventory } from './inventory';
 import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pve, type ContainerStatus } from './pve';
+
+function reserveInitialForwards(resourceId: string, studentId: string, profile: Profile) {
+  const initialForwards = profile.initialForwards || [];
+  if (!initialForwards.length) return;
+  const settings = getSettings(), existing = forwards();
+  const used = new Set(existing.map(rule => rule.protocol + ':' + rule.publicPort));
+  for (const input of initialForwards) {
+    let publicPort = input.publicPort ?? settings.portStart;
+    if (!input.publicPort) while (publicPort <= settings.portEnd && (used.has(input.protocol + ':' + publicPort) || settings.reservedPorts.includes(publicPort) || publicPort === settings.webTunnelPort)) publicPort++;
+    ensure(publicPort >= settings.portStart && publicPort <= settings.portEnd, 409, '初始化转发没有可用公网端口');
+    ensure(!used.has(input.protocol + ':' + publicPort) && !settings.reservedPorts.includes(publicPort) && publicPort !== settings.webTunnelPort, 409, '初始化转发公网端口已占用');
+    used.add(input.protocol + ':' + publicPort);
+    getDb().prepare('INSERT INTO forwards(id,student_id,resource_id,protocol,public_port,target_port,note,state) VALUES(?,?,?,?,?,?,?,?)')
+      .run(randomUUID(), studentId, resourceId, input.protocol, publicPort, input.targetPort, input.note, 'pending');
+  }
+}
 
 export function enqueue(type: string, studentId: string | null, resourceId: string | null, payload: Record<string, unknown>, secret?: string) {
   const existing = resourceId ? getDb().prepare('SELECT id FROM jobs WHERE resource_id=? AND state IN (?,?,?)').get(resourceId, 'queued', 'running', 'attention') as { id: string } | undefined : undefined;
@@ -44,6 +60,7 @@ export async function allocate(studentId: string, password: string, selected?: s
     const id = randomUUID();
     getDb().prepare('INSERT INTO resources(id,student_id,vmid,profile_id,network_id,ip,spec,network,state,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
       .run(id, studentId, allocation.vmid, profile.id, profile.networkId, allocation.ip, JSON.stringify(profile), JSON.stringify(allocation.network), 'reserved', now());
+    reserveInitialForwards(id, studentId, profile);
     if (claim) getDb().prepare('UPDATE students SET password_hash=? WHERE id=?').run(hash, studentId);
     const job = enqueue('create', studentId, id, {}, password);
     audit(studentId, 'resource.allocate', id);

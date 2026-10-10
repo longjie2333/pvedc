@@ -30,6 +30,7 @@ export const profileSchema = z.object({
   swap: z.coerce.number().int().min(0).max(1048576).default(0),
   disk: z.coerce.number().int().min(4).max(65536),
   networkId: text, nesting: z.boolean().default(false),
+  initialForwards: z.array(z.object({ protocol: z.enum(['tcp', 'udp']), targetPort: port, publicPort: port.optional(), note: z.string().trim().max(100).default('') })).max(20).default([]),
 });
 export type ProfileSpec = z.infer<typeof profileSchema>;
 

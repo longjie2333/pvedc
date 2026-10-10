@@ -9,7 +9,7 @@ import type { Resource } from '../shared/schema';
 const directory = mkdtempSync(resolve(tmpdir(), 'pvedc-guides-test-'));
 const resource: Resource = {
   id: 'resource-a001', studentId: 'a001', vmid: 1001, profileId: 'small', networkId: 'private', ip: '172.30.0.10', state: 'ready', createdAt: 1,
-  spec: { name: 'Small', published: true, enabled: true, template: 'local:vztmpl/debian.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 2, memory: 2048, swap: 0, disk: 16, networkId: 'private', nesting: false },
+  spec: { name: 'Small', published: true, enabled: true, template: 'local:vztmpl/debian.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 2, memory: 2048, swap: 0, disk: 16, networkId: 'private', nesting: false, initialForwards: [] },
   network: { name: 'Private', mode: 'nat', bridge: 'dc0', cidr: '172.30.0.0/24', gateway: '172.30.0.1', start: '172.30.0.10', end: '172.30.0.200', dns: ['1.1.1.1'], excluded: [], vlan: null },
 };
 
