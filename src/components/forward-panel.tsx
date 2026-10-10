@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ipaddr from 'ipaddr.js';
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import type { Forward, ListeningPort, Resource } from '../../shared/schema';
 import type { Sample } from '../../shared/metrics';
 import { request, useCommand } from '@/lib/api';
@@ -50,15 +50,14 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
         if (await command.run(prefix + '/forwards', input)) setOpen(false);
       }}>
         {!admin && <div className="col-span-full flex flex-col gap-3">
-          <Field name="listener"><FieldLabel>容器端口</FieldLabel><Select name="listener" required items={options} value={choice || null} itemToStringValue={option => option.value} onValueChange={option => {
+          <div className="inline-field-action"><Field name="listener"><FieldLabel>容器端口</FieldLabel><Select name="listener" required items={options} value={choice || null} itemToStringValue={option => option.value} onValueChange={option => {
             setSelected(option?.value || '');
             if (option?.target) { setProtocol(option.target.protocol); setTargetPort(String(option.target.port)); }
           }}>
             <SelectTrigger className="h-auto min-h-10 py-2"><SelectValue>{(option: PortChoice | null) => option ? <span className="flex flex-col text-left"><span>{option.label}</span><span className="text-xs text-muted-foreground">{option.description}</span></span> : '选择监听服务或手动指定'}</SelectValue></SelectTrigger>
             <SelectPopup>{options.map(option => <SelectItem key={option.value} value={option} disabled={option.disabled}><span className="flex flex-col"><span>{option.label}</span><span className="text-xs text-muted-foreground">{option.description}</span></span></SelectItem>)}</SelectPopup>
-          </Select></Field>
+          </Select></Field><Button type="button" size="icon-sm" variant="outline" aria-label="刷新监听服务" title="刷新监听服务" loading={ports.isFetching} onClick={() => void ports.refetch()}><RefreshCw/></Button></div>
           <Feedback error={ports.error?.message || ports.data?.error || undefined}/>
-          <div><Button type="button" size="sm" variant="ghost" loading={ports.isFetching} onClick={() => void ports.refetch()}>刷新监听服务</Button></div>
         </div>}
         {custom && <><Choice label="协议" value={protocol} onChange={setProtocol} items={[{ value: 'tcp', label: 'TCP' }, { value: 'udp', label: 'UDP' }]}/><TextField label={admin ? '容器端口' : '自定义容器端口'} type="number" min={1} max={65535} required value={targetPort} onChange={event => setTargetPort(event.target.value)}/></>}
         <TextField label="公网端口" name="publicPort" type="number" min={1} max={65535} placeholder="留空自动分配"/>
