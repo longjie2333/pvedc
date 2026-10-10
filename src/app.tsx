@@ -15,10 +15,11 @@ const StudentTasksPage = lazy(() => import('./pages/student').then(module => ({ 
 
 const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 2000 } } });
 const navigation = [
-  { id: 'overview', label: '总览', icon: LayoutDashboard }, { id: 'students', label: '学生名单', icon: Users },
-  { id: 'profiles', label: '资源配置', icon: HardDrive }, { id: 'networks', label: '网络与地址池', icon: Network },
-  { id: 'templates', label: '系统模板', icon: ListChecks }, { id: 'forwarding', label: '公网转发', icon: ArrowUpRight },
-  { id: 'tasks', label: '任务与审计', icon: Activity }, { id: 'guides', label: '指导书', icon: BookOpen }, { id: 'settings', label: '平台设置', icon: Settings2 },
+  { id: 'overview', label: '总览', icon: LayoutDashboard }, { id: 'guides', label: '指导书', icon: BookOpen },
+  { id: 'students', label: '学生名单', icon: Users }, { id: 'profiles', label: '资源配置', icon: HardDrive },
+  { id: 'networks', label: '网络与地址池', icon: Network }, { id: 'templates', label: '系统模板', icon: ListChecks },
+  { id: 'forwarding', label: '公网转发', icon: ArrowUpRight }, { id: 'tasks', label: '任务与审计', icon: Activity },
+  { id: 'settings', label: '平台设置', icon: Settings2 },
 ];
 function Application() {
   const cache = useQueryClient(), command = useCommand({ toastErrors: true });
