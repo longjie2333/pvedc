@@ -19,9 +19,10 @@ import { SettingsEditor } from './settings';
 import { StudentRoster } from '@/components/student-roster';
 import { HostOverview } from '@/components/host-overview';
 import { ActivityPage } from './activity';
+import { GuidesPage } from './guides';
 
 interface Overview { students: Student[]; resources: Resource[]; profiles: Profile[]; networks: Network[]; taskCounts: { attention: number }; forwards: Forward[] }
-const titles: Record<string, [string, string, string]> = { overview: ['RESOURCE OVERVIEW', '计算资源总览', '从资源分配到运行状态，在这里掌握全局。'], students: ['STUDENT ROSTER', '学生名单', '管理身份认领，为每个学生安排合适的计算环境。'], profiles: ['ALLOCATION PROFILES', '资源配置', '定义计算规格，为不同项目提供适合的起点。'], networks: ['NETWORK & ADDRESS POOLS', '网络与地址池', '管理 NAT 与桥接网络，确保每个实例都有明确地址。'], templates: ['SYSTEM TEMPLATES', '系统模板', '准备官方 Ubuntu 和 Debian 容器镜像。'], forwarding: ['PUBLIC ACCESS', '公网转发', '配置公网连接，查看学生服务的对外访问状态。'], tasks: ['ACTIVITY', '任务与审计', '追踪每一次资源操作和管理变更。'], settings: ['PLATFORM SETTINGS', '平台设置', '连接基础设施，配置分配策略和管理员身份。'] };
+const titles: Record<string, [string, string, string]> = { overview: ['RESOURCE OVERVIEW', '计算资源总览', '从资源分配到运行状态，在这里掌握全局。'], students: ['STUDENT ROSTER', '学生名单', '管理身份认领，为每个学生安排合适的计算环境。'], profiles: ['ALLOCATION PROFILES', '资源配置', '定义计算规格，为不同项目提供适合的起点。'], networks: ['NETWORK & ADDRESS POOLS', '网络与地址池', '管理 NAT 与桥接网络，确保每个实例都有明确地址。'], templates: ['SYSTEM TEMPLATES', '系统模板', '准备官方 Ubuntu 和 Debian 容器镜像。'], forwarding: ['PUBLIC ACCESS', '公网转发', '配置公网连接，查看学生服务的对外访问状态。'], tasks: ['ACTIVITY', '任务与审计', '追踪每一次资源操作和管理变更。'], guides: ['KNOWLEDGE BASE', '指导书', '编写面向学生的环境使用说明和操作指南。'], settings: ['PLATFORM SETTINGS', '平台设置', '连接基础设施，配置分配策略和管理员身份。'] };
 export function AdminPage() {
   const page = useParams().page || 'overview', command = useCommand();
   const [csv, setCsv] = useState(''), [fileError, setFileError] = useState('');
@@ -41,6 +42,7 @@ export function AdminPage() {
   {page === 'templates' && <Templates/>}
   {page === 'forwarding' && <><SettingsEditor section="forwarding"/><Panel title="公网链路" detail="保存上方公网配置后，在此应用连接。" action={<Button loading={command.pending} onClick={() => command.run('admin/gost/apply')}>应用 gost 配置</Button>}><div className="p-6"><p>{settings.data?.relayHost ? settings.data.relayHost + ':' + settings.data.relayPort : '尚未配置公网 Relay'}</p></div></Panel><ForwardPanel admin rules={d.forwards} publicHost={settings.data?.publicHost || ''}/><Deployment/></>}
   {page === 'tasks' && <ActivityPage/>}
+  {page === 'guides' && <GuidesPage/>}
   {page === 'settings' && <SettingsEditor profiles={d.profiles}/>}
   <Modal destructive open={!!confirmation} onClose={() => setConfirmation(undefined)} title={confirmation?.title || "确认操作"} description={confirmation?.description || ""} footer={<Button variant="destructive" loading={command.pending} onClick={async () => { if (confirmation && await command.run(confirmation.path, {}, confirmation.method || "POST")) setConfirmation(undefined); }}>确认</Button>}><Feedback error={command.error}/></Modal>
   {editor && <CatalogEditor key={editor.kind + (editor.item?.id || 'new')} {...editor} profiles={d.profiles} networks={d.networks} onClose={() => setEditor(undefined)}/>}

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BrowserRouter, NavLink, Route, Routes, Navigate } from 'react-router-dom';
-import { Activity, ArrowUpRight, Command, HardDrive, LayoutDashboard, ListChecks, LogOut, Network, Settings2, ShieldCheck, Users, PanelLeft } from 'lucide-react';
+import { Activity, ArrowUpRight, BookOpen, Command, HardDrive, LayoutDashboard, ListChecks, LogOut, Network, Settings2, ShieldCheck, Users, PanelLeft } from 'lucide-react';
 import type { Actor } from '../shared/schema';
 import { refreshBrowserSession, request, useCommand } from './lib/api';
 import { Feedback, Loading } from './components/common';
@@ -18,7 +18,7 @@ const navigation = [
   { id: 'overview', label: '总览', icon: LayoutDashboard }, { id: 'students', label: '学生名单', icon: Users },
   { id: 'profiles', label: '资源配置', icon: HardDrive }, { id: 'networks', label: '网络与地址池', icon: Network },
   { id: 'templates', label: '系统模板', icon: ListChecks }, { id: 'forwarding', label: '公网转发', icon: ArrowUpRight },
-  { id: 'tasks', label: '任务与审计', icon: Activity }, { id: 'settings', label: '平台设置', icon: Settings2 },
+  { id: 'tasks', label: '任务与审计', icon: Activity }, { id: 'guides', label: '指导书', icon: BookOpen }, { id: 'settings', label: '平台设置', icon: Settings2 },
 ];
 function Application() {
   const cache = useQueryClient(), command = useCommand();
