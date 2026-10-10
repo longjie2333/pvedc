@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { createSocket } from 'node:dgram';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { generateSync } from 'otplib';
 import { Client } from 'ssh2';
 
@@ -147,11 +147,12 @@ if (phase === 'verify') {
   if (!(await api('me/overview', undefined, state.studentCookie)).value.forwards.some(rule => rule.protocol === 'tcp')) await waitTask((await api('me/forwards', { protocol: 'tcp', targetPort: 22, publicPort: 11009, note: 'UPGRADE SSH' }, state.studentCookie)).value.taskId);
   assert(await ssh('hostname', fixture.relayHost, state.password, 11009) === first.studentId, 'Public TCP forwarding failed');
   const script = 'import socket\ns=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\ns.bind(("0.0.0.0",9000))\nwhile True:\n d,a=s.recvfrom(2048)\n s.sendto(d,a)';
-  execFileSync('pct', ['exec', String(first.vmid), '--', 'systemd-run', '--unit=pvedc-upgrade-udp', '/usr/bin/python3', '-u', '-c', script], { stdio: ['ignore', 'ignore', 'pipe'] });
+  spawnSync('pct', ['exec', String(first.vmid), '--', 'systemctl', 'stop', 'pvedc-upgrade-udp'], { stdio: 'ignore' });
+  execFileSync('pct', ['exec', String(first.vmid), '--', 'systemd-run', '--collect', '--unit=pvedc-upgrade-udp', '/usr/bin/python3', '-u', '-c', script], { stdio: ['ignore', 'ignore', 'pipe'] });
   if (!(await api('me/overview', undefined, state.studentCookie)).value.forwards.some(rule => rule.protocol === 'udp')) await waitTask((await api('me/forwards', { protocol: 'udp', targetPort: 9000, publicPort: 11008, note: 'UPGRADE UDP' }, state.studentCookie)).value.taskId);
   const udp = createSocket('udp4'), nonce = randomBytes(16).toString('hex');
   await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => { udp.close(); reject(new Error('Public UDP timed out')); }, 15000);
+    const timeout = setTimeout(() => { clearInterval(interval); udp.close(); reject(new Error('Public UDP timed out')); }, 15000);
     const interval = setInterval(() => udp.send(nonce, 11008, fixture.relayHost), 1000);
     udp.once('message', message => { clearTimeout(timeout); clearInterval(interval); udp.close(); message.toString() === nonce ? resolve() : reject(new Error('UDP response mismatch')); });
     udp.once('error', error => { clearTimeout(timeout); clearInterval(interval); udp.close(); reject(error); });
