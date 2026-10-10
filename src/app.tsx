@@ -21,7 +21,7 @@ const navigation = [
   { id: 'tasks', label: '任务与审计', icon: Activity }, { id: 'guides', label: '指导书', icon: BookOpen }, { id: 'settings', label: '平台设置', icon: Settings2 },
 ];
 function Application() {
-  const cache = useQueryClient(), command = useCommand();
+  const cache = useQueryClient(), command = useCommand({ toastErrors: true });
   const [menu, setMenu] = useState(false);
   const session = useQuery({ queryKey: ['session'], queryFn: () => request<{ actor: Actor | null; initialized: boolean; title: string; expiresAt?: number; refreshExpiresAt?: number }>('auth/session'), refetchInterval: 60000 });
   useEffect(() => { const listener = () => void cache.invalidateQueries({ queryKey: ['session'] }); window.addEventListener('pvedc:unauthorized', listener); return () => window.removeEventListener('pvedc:unauthorized', listener); }, [cache]);

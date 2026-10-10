@@ -46,7 +46,7 @@ export async function downloadFile(path: string, filename: string) {
     toastManager.add({ type: 'error', title: '导出失败', description: error instanceof Error ? error.message : '请稍后重试' });
   }
 }
-export function useCommand() {
+export function useCommand({ toastErrors = false }: { toastErrors?: boolean } = {}) {
   const cache = useQueryClient();
   const [pending, setPending] = useState(false), [error, setError] = useState('');
   const running = useRef(false);
@@ -66,7 +66,7 @@ export function useCommand() {
     catch (error) {
       const message = error instanceof Error ? error.message : '操作失败';
       setError(message);
-      toastManager.add({ type: 'error', title: '操作失败', description: message });
+      if (toastErrors) toastManager.add({ type: 'error', title: '操作失败', description: message });
     }
     finally { running.current = false; setPending(false); }
   }
