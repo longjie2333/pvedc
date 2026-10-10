@@ -31,6 +31,12 @@ afterAll(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
+it('rejects initial forwards that exceed the per-student quota', async () => {
+  saveSettings({ ...getSettings(), forwardQuota: 1 });
+  await expect(allocate('a001', 'Forward-password', undefined, true)).rejects.toThrow('初始化转发数量超过每人配额');
+  saveSettings({ ...getSettings(), forwardQuota: 5 });
+});
+
 it('reserves configured initial forwards while allocating a resource', async () => {
   const result = await allocate('a001', 'Forward-password', undefined, true);
   expect(result.taskId).toBeTruthy();

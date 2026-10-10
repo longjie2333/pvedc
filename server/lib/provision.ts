@@ -15,6 +15,7 @@ function reserveInitialForwards(resourceId: string, studentId: string, profile: 
   const initialForwards = profile.initialForwards || [];
   if (!initialForwards.length) return;
   const settings = getSettings(), existing = forwards();
+  ensure(initialForwards.length <= settings.forwardQuota, 409, '初始化转发数量超过每人配额');
   const used = new Set(existing.map(rule => rule.protocol + ':' + rule.publicPort));
   for (const input of initialForwards) {
     let publicPort = input.publicPort ?? settings.portStart;
