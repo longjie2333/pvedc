@@ -52,7 +52,6 @@ pre { overflow: auto; padding: 20px; border-radius: 10px; background: #f0f4ef; f
 .auth-card h2 { font-size: 27px; font-weight: 620; letter-spacing: -1px; }
 .intro { color: var(--muted-foreground); font-size: 13px; margin: 12px 0 30px; }
 .auth-links { display: flex; justify-content: space-between; margin-top: 24px; font-size: 12px; color: var(--primary); }
-.auth-hint { margin-top: 40px; font-size: 11px; text-align: center; color: #98a19a; }
 .setup-secret { display: flex; align-items: center; flex-direction: column; gap: 14px; padding: 18px; background: #f1f5ee; border: 1px solid var(--border); border-radius: 12px; text-align: center; font-size: 12px; }
 .setup-secret img { width: 190px; height: 190px; border-radius: 6px; }
 .setup-secret code { overflow-wrap: anywhere; font-size: 13px; }
