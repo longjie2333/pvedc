@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDownToLine, Search } from 'lucide-react';
-import type { Profile, Student } from '../../shared/schema';
+import type { AdminStudent, Profile } from '../../shared/schema';
 import { batchActions, batchConfirmation, batchNames, type BatchAction, type BatchResult } from '../../shared/batch';
 import { downloadFile, useCommand } from '@/lib/api';
 import { Choice, Empty, Feedback, Modal, Panel, Status, TextField } from './common';
@@ -11,11 +11,11 @@ import { Input } from './ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
 export function StudentRoster({ students, profiles, onEdit, onMachine, onImport }: {
-  students: Student[]; profiles: Profile[]; onEdit: (student: Student) => void; onMachine: (student: Student) => void; onImport: () => void;
+  students: AdminStudent[]; profiles: Profile[]; onEdit: (student: AdminStudent) => void; onMachine: (student: AdminStudent) => void; onImport: () => void;
 }) {
   const [query, setQuery] = useState(''), [selected, setSelected] = useState<string[]>([]), [assign, setAssign] = useState('');
   const [batch, setBatch] = useState<{ ids: string[]; action: BatchAction }>(), [confirmation, setConfirmation] = useState('');
-  const [result, setResult] = useState<BatchResult>(), [resetStudent, setResetStudent] = useState<Student>();
+  const [result, setResult] = useState<BatchResult>(), [resetStudent, setResetStudent] = useState<AdminStudent>();
   const command = useCommand();
   const filtered = useMemo(() => students.filter(student => [student.id, student.name, student.className].some(value => value.includes(query))), [students, query]);
   const all = filtered.length > 0 && filtered.every(student => selected.includes(student.id));
@@ -39,10 +39,11 @@ export function StudentRoster({ students, profiles, onEdit, onMachine, onImport 
           <div className="flex flex-wrap gap-2">{batchActions.map(action => <Button key={action} type="button" variant={['reclaim', 'delete'].includes(action) ? 'destructive-outline' : 'outline'} onClick={() => chooseBatch(action)}>{'批量' + batchNames[action]}</Button>)}</div>
         </div>}
       </div>
-      {filtered.length ? <Table><TableHeader><TableRow><TableHead><Checkbox aria-label="全选当前结果" checked={all} indeterminate={selected.length > 0 && !all} onCheckedChange={checked => setSelected(checked ? filtered.map(student => student.id) : [])}/></TableHead><TableHead>学生</TableHead><TableHead>班级</TableHead><TableHead>指定配置</TableHead><TableHead>认领 / 资源</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>
+      {filtered.length ? <Table><TableHeader><TableRow><TableHead><Checkbox aria-label="全选当前结果" checked={all} indeterminate={selected.length > 0 && !all} onCheckedChange={checked => setSelected(checked ? filtered.map(student => student.id) : [])}/></TableHead><TableHead>学生</TableHead><TableHead>班级</TableHead><TableHead>认领密钥</TableHead><TableHead>指定配置</TableHead><TableHead>认领 / 资源</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>
         {filtered.map(student => <TableRow key={student.id}>
           <TableCell><Checkbox aria-label={'选择 ' + student.name} checked={selected.includes(student.id)} onCheckedChange={checked => setSelected(previous => checked ? [...previous, student.id] : previous.filter(id => id !== student.id))}/></TableCell>
           <TableCell><strong>{student.name}</strong><small className="mono">{student.id}</small></TableCell><TableCell>{student.className || '—'}</TableCell>
+          <TableCell className="mono">{student.claimKey || '—'}</TableCell>
           <TableCell>{profiles.find(profile => profile.id === student.profileId)?.name || '遵循平台规则'}</TableCell>
           <TableCell><Status state={student.deleting ? 'deleting' : student.resource?.state || (student.claimed ? '已认领' : '未认领')}/>{student.resource && <small className="mono">{student.resource.ip}</small>}</TableCell>
           <TableCell><div className="flex gap-1"><Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => onEdit(student)}>编辑</Button>
@@ -68,7 +69,7 @@ export function StudentRoster({ students, profiles, onEdit, onMachine, onImport 
         <Feedback error={command.error}/>
       </div>
     </Modal>
-    <Modal destructive open={!!resetStudent} onClose={() => setResetStudent(undefined)} title="重置学生认领" description="清除平台密码并撤销登录状态，此学号可以重新认领。"
+    <Modal destructive open={!!resetStudent} onClose={() => setResetStudent(undefined)} title="重置学生认领" description="清除平台密码并撤销登录状态，认领密钥保留；此学号可以凭原密钥重新认领。"
       footer={<Button type="button" variant="destructive" loading={command.pending} onClick={async () => { if (resetStudent && await command.run('admin/students/' + resetStudent.id + '/reset')) setResetStudent(undefined); }}>确认重置</Button>}><Feedback error={command.error}/></Modal>
   </>;
 }
