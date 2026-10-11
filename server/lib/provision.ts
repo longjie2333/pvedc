@@ -3,7 +3,8 @@ import type { Actor, ForwardInput, Profile } from '../../shared/schema';
 import { getDb, now, audit } from './db';
 import { ensure } from './errors';
 import { seal } from './crypto';
-import { hashPassword, verifyPassword } from './auth';
+import { hashPassword, rateLimit, verifyPassword } from './auth';
+import { matchesClaimKey, studentKey } from './claim-key';
 import { revokeSubject } from './sessions';
 import { getSettings } from './settings';
 import { forwards, profiles, resources, type StudentRow } from './records';
@@ -37,13 +38,21 @@ export function enqueue(type: string, studentId: string | null, resourceId: stri
   return { taskId: id };
 }
 
-export async function allocate(studentId: string, password: string, selected?: string, claim = false) {
+export async function allocate(studentId: string, password: string, selected?: string, claim = false, suppliedKey?: string) {
   const settings = getSettings();
   ensure(settings.registrationOpen, 403, '管理员尚未开放资源申请');
   const student = getDb().prepare('SELECT * FROM students WHERE id=?').get(studentId) as StudentRow | undefined;
   ensure(student?.enabled, 404, '学号不存在或已停用');
-  if (claim) ensure(!student.password_hash, 409, '该学号已经认领，请登录');
-  else ensure(student.password_hash && await verifyPassword(student.password_hash, password), 401, '密码错误');
+  if (claim) {
+    ensure(!student.password_hash, 409, '该学号已经认领，请登录');
+    const required = studentKey(studentId);
+    if (required) {
+      const supplied = suppliedKey?.trim() || '';
+      ensure(supplied, 400, '请输入认领密钥');
+      rateLimit('claim-key:' + studentId, 8);
+      ensure(matchesClaimKey(required, supplied), 403, '认领密钥不正确');
+    }
+  } else ensure(student.password_hash && await verifyPassword(student.password_hash, password), 401, '密码错误');
   const previous = resources().find(r => r.studentId === studentId);
   if (previous) {
     const job = getDb().prepare('SELECT id FROM jobs WHERE resource_id=? ORDER BY created_at DESC LIMIT 1').get(previous.id) as { id: string };
@@ -55,6 +64,10 @@ export async function allocate(studentId: string, password: string, selected?: s
     ensure(getSettings().registrationOpen, 403, '管理员已关闭资源申请');
     const current = getDb().prepare('SELECT * FROM students WHERE id=?').get(studentId) as StudentRow;
     ensure(current.enabled && (!claim || !current.password_hash), 409, '该学号已经认领或停用');
+    if (claim) {
+      const required = studentKey(studentId);
+      ensure(!required || (!!suppliedKey?.trim() && matchesClaimKey(required, suppliedKey.trim())), 403, '认领密钥不正确');
+    }
     const profile = selectProfile(profiles(), current.profile_id, selected, getSettings());
     const allocation = budgetFor(profile, snapshot);
     ensure(allocation.capacity.count > 0, 409, '当前配置容量不足：' + allocation.capacity.limiting.join('、'));
