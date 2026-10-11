@@ -16,6 +16,7 @@ export function openDatabase(path: string) {
     'CREATE TABLE IF NOT EXISTS networks (id TEXT PRIMARY KEY, spec TEXT NOT NULL, ready INTEGER NOT NULL DEFAULT 0, error TEXT);',
     'CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, spec TEXT NOT NULL, network_id TEXT NOT NULL REFERENCES networks(id));',
     'CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY, name TEXT NOT NULL, class_name TEXT NOT NULL DEFAULT \'\', profile_id TEXT REFERENCES profiles(id), enabled INTEGER NOT NULL DEFAULT 1, password_hash TEXT, created_at INTEGER NOT NULL);',
+    'CREATE TABLE IF NOT EXISTS student_keys (student_id TEXT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE, sealed TEXT NOT NULL);',
     'CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, student_id TEXT NOT NULL UNIQUE REFERENCES students(id), vmid INTEGER NOT NULL UNIQUE, profile_id TEXT NOT NULL REFERENCES profiles(id), network_id TEXT NOT NULL REFERENCES networks(id), ip TEXT NOT NULL UNIQUE, spec TEXT NOT NULL, network TEXT NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL);',
     'CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, type TEXT NOT NULL, student_id TEXT REFERENCES students(id), resource_id TEXT, state TEXT NOT NULL, step TEXT NOT NULL DEFAULT \'pending\', payload TEXT NOT NULL, secret TEXT, upid TEXT, error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);',
     'CREATE UNIQUE INDEX IF NOT EXISTS jobs_resource_active ON jobs(resource_id) WHERE resource_id IS NOT NULL AND state IN (\'queued\',\'running\',\'attention\');',

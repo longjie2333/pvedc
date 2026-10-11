@@ -5,11 +5,14 @@ const text = z.string().trim().min(1).max(100);
 const port = z.coerce.number().int().min(1).max(65535);
 export const studentId = z.string().trim().regex(/^[A-Za-z][0-9]{2,31}$/, '学号需为首字母 + 2–32 位数字');
 export const password = z.string().min(10, '密码至少 10 位').max(128).refine(v => !/[\r\n\0:]/.test(v), '密码不能包含冒号、换行或空字符');
+export const claimKey = z.string().trim().min(1, '认领密钥不能为空').max(64, '认领密钥最多 64 位')
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, '认领密钥需以字母或数字开头，只能包含字母、数字和 . _ -');
 export const otp = z.string().regex(/^\d{6}$/, '请输入六位验证码');
 
 export const studentSchema = z.object({
   id: studentId, name: text, className: z.string().trim().max(100).default(''),
   profileId: z.string().nullable().default(null), enabled: z.boolean().default(true),
+  claimKey: z.union([z.literal(''), claimKey]).optional(),
 });
 export type StudentInput = z.infer<typeof studentSchema>;
 
@@ -81,7 +84,8 @@ export interface Guide extends GuideInput { id: string; createdAt: number; updat
 export type Actor = { role: 'admin' | 'student'; sub: string; sessionId: string };
 export type TaskState = 'queued' | 'running' | 'failed' | 'succeeded' | 'attention';
 export type ResourceState = 'reserved' | 'creating' | 'configuring' | 'ready' | 'rebuilding' | 'deleting' | 'failed';
-export interface Student extends StudentInput { claimed: boolean; deleting: boolean; createdAt: number; resource: Resource | null }
+export interface Student extends Omit<StudentInput, 'claimKey'> { claimed: boolean; deleting: boolean; createdAt: number; resource: Resource | null }
+export interface AdminStudent extends Student { claimKey: string }
 export interface Profile extends ProfileSpec { id: string }
 export interface ProfileSummary { id: string; name: string; cores: number; memory: number; disk: number; distro: 'ubuntu' | 'debian' }
 export interface Network extends NetworkSpec { id: string; ready: boolean; error: string | null }

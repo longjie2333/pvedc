@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { api, actor, body } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { forwards, networks, profiles, resources, students, taskForActor } from '../../lib/records';
+import { adminStudents, forwards, networks, profiles, resources, students, taskForActor } from '../../lib/records';
 import { getSettings, safeSettings, saveSettings } from '../../lib/settings';
 import { audit, getDb } from '../../lib/db';
 import { exportStudents, importStudents, removeCatalog, resetClaim, saveNetwork, saveProfile, saveStudents, validateSettings } from '../../lib/catalog';
@@ -21,7 +21,7 @@ export default api(async event => {
   const user = await actor(event, 'admin');
   const [, , , action, id, operation] = event.url.pathname.split('/');
   if (event.req.method === 'GET') {
-    if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
+    if (action === 'overview') return { students: adminStudents(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
     if (action === 'tasks' && id === 'batch') return batchStatus(operation);
     if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'settings') return safeSettings();
