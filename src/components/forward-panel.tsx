@@ -57,7 +57,7 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
           }}>
             <SelectTrigger className="h-auto min-h-10 py-2"><SelectValue>{(option: PortChoice | null) => option ? <span className="flex flex-col text-left"><span>{option.label}</span><span className="text-xs text-muted-foreground">{option.description}</span></span> : '选择监听服务或手动指定'}</SelectValue></SelectTrigger>
             <SelectPopup>{options.map(option => <SelectItem key={option.value} value={option} disabled={option.disabled}><span className="flex flex-col"><span>{option.label}</span><span className="text-xs text-muted-foreground">{option.description}</span></span></SelectItem>)}</SelectPopup>
-          </Select></Field><Button type="button" size="icon-sm" variant="outline" aria-label="刷新监听服务" title="刷新监听服务" loading={ports.isFetching} onClick={() => void ports.refetch()}><RefreshCw/></Button></div>
+          </Select></Field><Button type="button" size="icon" variant="outline" aria-label="刷新监听服务" title="刷新监听服务" loading={ports.isFetching} onClick={() => void ports.refetch()}><RefreshCw/></Button></div>
           <Feedback error={ports.error?.message || ports.data?.error || undefined}/>
         </div>}
         {custom && <><Choice label="协议" value={protocol} onChange={setProtocol} items={[{ value: 'tcp', label: 'TCP' }, { value: 'udp', label: 'UDP' }]}/><TextField label={admin ? '容器端口' : '自定义容器端口'} type="number" min={1} max={65535} required value={targetPort} onChange={event => setTargetPort(event.target.value)}/></>}
