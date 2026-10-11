@@ -34,20 +34,21 @@ export function GuidesPage() {
   const [draft, setDraft] = useState<Draft>(blank);
   const [source, setSource] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
+  const [creating, setCreating] = useState(false);
   const selected = useMemo(() => guides.data?.find(guide => guide.id === selectedId), [guides.data, selectedId]);
   useEffect(() => {
-    if (selectedId && selected) return;
+    if (creating || (selectedId && selected)) return;
     const next = guides.data?.[0];
     setSelectedId(next?.id);
     setDraft(next ? { id: next.id, title: next.title, markdown: next.markdown, sortOrder: next.sortOrder, defaultCollapsed: next.defaultCollapsed, published: next.published } : blank);
-  }, [guides.data, selected, selectedId]);
+  }, [guides.data, selected, selectedId, creating]);
   function selectGuide(guide: Guide) {
-    setSelectedId(guide.id); setDraft({ id: guide.id, title: guide.title, markdown: guide.markdown, sortOrder: guide.sortOrder, defaultCollapsed: guide.defaultCollapsed, published: guide.published }); setSource(false); setEditorKey(value => value + 1);
+    setCreating(false);setSelectedId(guide.id); setDraft({ id: guide.id, title: guide.title, markdown: guide.markdown, sortOrder: guide.sortOrder, defaultCollapsed: guide.defaultCollapsed, published: guide.published }); setEditorKey(value => value + 1);
   }
-  function createGuide() { setSelectedId(undefined); setDraft({ ...blank, title: '新指导书' }); setSource(true); setEditorKey(value => value + 1); }
+  function createGuide() { setCreating(true); setSelectedId(undefined); setDraft({ ...blank, title: '新指导书' }); setEditorKey(value => value + 1); }
   async function save() {
     const result = await command.run<Guide>('admin/guides' + (draft.id ? '/' + draft.id : ''), draft, draft.id ? 'PUT' : 'POST');
-    if (result) { await guides.refetch(); selectGuide(result); setSource(false); }
+    if (result) { await guides.refetch(); selectGuide(result); }
   }
   async function remove() {
     if (!draft.id || !window.confirm('确定删除这篇指导书吗？')) return;
