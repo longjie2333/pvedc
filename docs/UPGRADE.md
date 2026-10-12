@@ -57,6 +57,18 @@
 
 ## 后续实施注意
 
+### 2026-10-12 多网络资源配置与管理员调整机器（本地开发与测试）
+
+- 目标一：资源配置支持绑定多个网络；目标二：管理员后台可调整已认领/已创建机器的网络（已有网络配置或自定义）与规格，改网络前需要关机确认。两项按用户要求各自独立提交：`d48bba1`（多网络）、`a1df70a`（调整机器）。
+- 数据模型：`profileSchema.networkId` → 有序 `networkIds`（1–8，去重）；新增 `machineNetworkSchema`（iface、networkId、name、bridge、cidr、ip、gateway、dns、vlan、mac）；`Resource` 由单 `ip/network` 改为 `networks: MachineNetwork[]`。`profileSchema` 与 `Resource` 中不再保留旧字段。
+- 库升级：数据层此前无迁移机制，本轮把 `openDatabase()` 的 `schema_version` 升为 `2`，检测到 `'1'` 时在**单个事务内**重建 `profiles`（去掉 `network_id` 列、spec 内 `networkId`→`networkIds` 数组）与 `resources`（`network_id/ip/network` 合并为 `networks` JSON 数组），写库前后不暴露半成品；升级函数先 `foreign_keys=OFF`，结束 `PRAGMA foreign_key_check` 校验并恢复。新增 `tests/db-upgrade.test.ts` 用 v1 结构库验证升级结果与幂等（第二次打开不再重写）。
+- 创建链路：`budgetFor()` 对每个网络各取首个空闲地址（任一网络无地址则容量为 0，`ip` 取各网络最小值）；`allocate()` 写入 interfaces 数组；worker `create` 生成 `net0..netN`（仅 net0 带 `gw=`，`nameserver` 取主网络 DNS），`create-wait` 从 PVE 读回实际分配的 MAC 写入快照。占用检测（`inventory.occupiedIps`）扫描所有资源的全部网卡地址、宿主接口与所有 PVE 访客 `net\d+`。
+- 调整机器：`POST /api/admin/resources/:id/adjust`（`server/lib/adjust.ts`）。选择已有网络时按地址池分配（地址未变则保留），自定义时校验 bridge 存在且支持 VLAN、CIDR/IP 在网段内、网关仅第一块网卡；MAC 支持保持/指定/自动三种模式。磁盘只能扩容、CPU/内存不得超过宿主保留后的可用额度。新增 `adjust` 任务状态机：pending →（网络变更且运行中）adjust-stop/stop-wait → adjust-apply（`PUT /config` + 必要时 `PUT /resize`，扩容按实时容量取增量，重试不重复）→ adjust-verify（读回校验后落库）→ adjust-start/start-wait → adjust-finish（主 IP 变化触发 forward-sync）；已在 `shared/activity.ts` 与 `task-recovery.ts` 注册。尚未创建容器时直接改写快照。
+- 前端：配置编辑器改为网卡增删/排序列表；机器详情新增“网络接口”面板与“调整配置”入口（`src/components/resource-adjust.tsx`，运行中改网络弹出关机确认 AlertDialog）；名单、导出、转发目标统一使用第一块网卡地址。
+- 本地验证：`pnpm typecheck` 通过；`pnpm test` 通过（20 个文件 98 项 Vitest，含 `db-upgrade`、`multi-network`、`adjust` 新增用例；6 项 Python helper 测试）；Playwright `admin`（含双网络配置保存断言）、`claim`、`ports`、`activity`、`session` 及新增 `adjust`（3 条：仅规格免确认、运行中改网确认关机、停机自定义网桥含 MAC）通过。`guides.spec.ts` 两条在未改动的 HEAD 上同样失败（Milkdown 编辑器步骤超时），属既有问题，未在本轮修改。
+- 本轮数据集变化：内部测试仅使用本地临时 SQLite；未连接、未修改任何线上/隔离环境数据；未部署、未推送、未合并 `master`。线上库首次以新版本启动前必须备份 `.data`/`/var/lib/pvedc` 的 sqlite（含 WAL）。
+- 下列事项本轮未验证，需部署验收时确认：真实 PVE 上多次 `PUT /lxc/{vmid}/config` 的网络切换与 MAC 生效、`resize` 的实际容量变化、运行中 container 的优雅关机与自动恢复、现有线上 v1 数据库升级后的登录/任务/转发连续性。
+
 ### 2026-10-12 认领密钥（本地开发与测试）
 
 - 目标：名单支持可选认领密钥；密钥为空时认领无需填写，非空时必须正确填写。管理端可查看、可编辑、随 CSV 导入导出。
