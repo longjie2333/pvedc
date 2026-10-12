@@ -63,14 +63,14 @@ export async function syncForwards(resourceId?: string, pause = false) {
   for (const rule of rules) {
     const name = prefix + rule.id, found = existing.list?.find(s => s.name === name);
     const resource = resources().find(r => r.id === rule.resourceId);
-    const active = rule.enabled && !pause && resource?.state === 'ready';
+    const active = rule.enabled && !pause && resource?.state === 'ready' && !!resource.networks[0];
     if (!active) {
       if (found) await gost('/config/services/' + name, 'DELETE');
       getDb().prepare('UPDATE forwards SET state=?,error=NULL WHERE id=?').run('paused', rule.id);
       continue;
     }
     const value = { name, addr: '0.0.0.0:' + rule.publicPort, handler: { type: 'r' + rule.protocol }, listener: { type: 'r' + rule.protocol, chain: prefix + 'relay' },
-      forwarder: { nodes: [{ name: 'target', addr: resource.ip + ':' + rule.targetPort }] } };
+      forwarder: { nodes: [{ name: 'target', addr: resource.networks[0].ip + ':' + rule.targetPort }] } };
     const { status: _status, ...current } = found || {} as Service;
     if (!found || current.addr !== value.addr || JSON.stringify(current.forwarder) !== JSON.stringify(value.forwarder)) await upsert('/config/services', name, value, !!found);
     getDb().prepare('UPDATE forwards SET state=?,error=NULL WHERE id=?').run('pending', rule.id);

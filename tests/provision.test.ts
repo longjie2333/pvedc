@@ -28,7 +28,7 @@ beforeAll(() => {
   process.env.PDC_DATA_DIR = directory;
   const network = saveNetwork({ name: 'One address', mode: 'nat', bridge: 'dctest', cidr: '172.30.0.0/24', gateway: '172.30.0.1', start: '172.30.0.10', end: '172.30.0.10', dns: ['1.1.1.1'], excluded: [], vlan: null });
   getDb().prepare('UPDATE networks SET ready=1').run();
-  profileId = saveProfile({ name: 'Test', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, swap: 0, disk: 4, networkId: network.id, nesting: false }).id;
+  profileId = saveProfile({ name: 'Test', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, swap: 0, disk: 4, networkIds: [network.id], nesting: false }).id;
   saveSettings({ ...getSettings(), defaultProfileId: profileId, registrationOpen: true });
   saveStudents(['00001001', '00001002'].map(id => ({ id, name: id, className: 'test', profileId: null, enabled: true })));
 });
@@ -42,7 +42,7 @@ it('atomically reserves the last address during concurrent claims', async () => 
   expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
   expect(results.filter(r => r.status === 'rejected')).toHaveLength(1);
   expect(resources()).toHaveLength(1);
-  expect(resources()[0].ip).toBe('172.30.0.10');
+  expect(resources()[0].networks[0].ip).toBe('172.30.0.10');
   const claimed = getDb().prepare('SELECT count(*) count FROM students WHERE password_hash IS NOT NULL').get() as { count: number };
   expect(claimed.count).toBe(1);
   const job = getDb().prepare('SELECT secret FROM jobs').get() as { secret: string };
@@ -61,7 +61,7 @@ it('retains the VMID and IP reservation when a PVE creation request times out', 
   await workerTick();
   const task = getDb().prepare('SELECT state,step,upid FROM jobs WHERE resource_id=?').get(before.id) as { state: string; step: string; upid: string | null };
   expect(task).toEqual({ state: 'attention', step: 'create-wait', upid: null });
-  expect(resources()[0].vmid).toBe(before.vmid); expect(resources()[0].ip).toBe(before.ip);
+  expect(resources()[0].vmid).toBe(before.vmid); expect(resources()[0].networks[0].ip).toBe(before.networks[0].ip);
   call.mockRestore();
 });
 it('enforces forwarding ownership and quotas transactionally', () => {

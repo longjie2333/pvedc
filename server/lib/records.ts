@@ -4,7 +4,7 @@ import { ensure } from './errors';
 import { studentKeys } from './claim-key';
 
 export interface StudentRow { id: string; name: string; class_name: string; profile_id: string | null; enabled: number; password_hash: string | null; created_at: number }
-interface ResourceRow { id: string; student_id: string; vmid: number; profile_id: string; network_id: string; ip: string; spec: string; network: string; state: Resource['state']; created_at: number }
+interface ResourceRow { id: string; student_id: string; vmid: number; profile_id: string; networks: string; spec: string; state: Resource['state']; created_at: number }
 interface JobRow { id: string; type: string; student_id: string | null; deleted_student_id?: string | null; resource_id: string | null; state: Task['state']; step: string; error: string | null; created_at: number; updated_at: number }
 export interface FullJobRow extends JobRow { payload: string; secret: string | null; upid: string | null }
 
@@ -15,7 +15,7 @@ export function networks(): Network[] {
   return (getDb().prepare('SELECT * FROM networks').all() as { id: string; spec: string; ready: number; error: string | null }[]).map(r => ({ ...JSON.parse(r.spec), id: r.id, ready: !!r.ready, error: r.error }));
 }
 export function resources(): Resource[] {
-  return (getDb().prepare('SELECT * FROM resources').all() as ResourceRow[]).map(r => ({ id: r.id, studentId: r.student_id, vmid: r.vmid, profileId: r.profile_id, networkId: r.network_id, ip: r.ip, spec: JSON.parse(r.spec), network: JSON.parse(r.network), state: r.state, createdAt: r.created_at }));
+  return (getDb().prepare('SELECT * FROM resources').all() as ResourceRow[]).map(r => ({ id: r.id, studentId: r.student_id, vmid: r.vmid, profileId: r.profile_id, networks: JSON.parse(r.networks), spec: JSON.parse(r.spec), state: r.state, createdAt: r.created_at }));
 }
 export function students(): Student[] {
   const machines = resources();

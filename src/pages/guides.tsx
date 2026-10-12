@@ -41,6 +41,7 @@ export function GuidesPage() {
     const next = guides.data?.[0];
     setSelectedId(next?.id);
     setDraft(next ? { id: next.id, title: next.title, markdown: next.markdown, sortOrder: next.sortOrder, defaultCollapsed: next.defaultCollapsed, published: next.published } : blank);
+    setEditorKey(value => value + 1)
   }, [guides.data, selected, selectedId, creating]);
   function selectGuide(guide: Guide) {
     setCreating(false);setSelectedId(guide.id); setDraft({ id: guide.id, title: guide.title, markdown: guide.markdown, sortOrder: guide.sortOrder, defaultCollapsed: guide.defaultCollapsed, published: guide.published }); setEditorKey(value => value + 1);

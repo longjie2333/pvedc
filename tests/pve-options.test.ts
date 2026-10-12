@@ -50,7 +50,7 @@ it('rejects forged bridge selections and VLANs on unaware interfaces', async () 
   expect((await prepareNetwork({ ...network, mode: 'bridge', bridge: 'vnet0', vlan: 100 })).vlan).toBe(100);
 });
 it('validates template existence, distribution and rootdir storage on save', async () => {
-  const profile = profileSchema.parse({ name: 'Profile', template, distro: 'debian', storage: 'local-lvm', cores: 2, memory: 1024, disk: 8, networkId: 'network' });
+  const profile = profileSchema.parse({ name: 'Profile', template, distro: 'debian', storage: 'local-lvm', cores: 2, memory: 1024, disk: 8, networkIds: ['network'] });
   await expect(validateProfileOptions(profile)).resolves.toBeUndefined();
   await expect(validateProfileOptions({ ...profile, storage: 'local' })).rejects.toThrow('不支持容器');
   await expect(validateProfileOptions({ ...profile, distro: 'ubuntu' })).rejects.toThrow('发行版');

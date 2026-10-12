@@ -35,7 +35,7 @@ function escapeText(value: unknown) {
 function machineValue(resource: Resource | undefined, key: string) {
   if (!resource) return '—';
   const values: Record<string, unknown> = {
-    studentId: resource.studentId, hostname: resource.studentId, vmid: resource.vmid, ip: resource.ip,
+    studentId: resource.studentId, hostname: resource.studentId, vmid: resource.vmid, ip: resource.networks[0]?.ip,
     profile: resource.spec.name, distro: resource.spec.distro, cores: resource.spec.cores,
     memory: resource.spec.memory + ' MiB', disk: resource.spec.disk + ' GiB',
   };

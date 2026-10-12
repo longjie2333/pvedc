@@ -7,6 +7,7 @@ export const taskNames: Record<string, string> = {
   'gost-api-update': '同步 gost API',
   'student-delete': '删除学生',
   'network-apply': '应用网络', 'network-remove': '移除网络',
+  adjust: '调整配置',
 };
 export const taskStates = ['queued', 'running', 'succeeded', 'failed', 'attention'] as const;
 export const activityQuerySchema = z.object({

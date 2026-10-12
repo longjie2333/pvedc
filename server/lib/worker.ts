@@ -1,6 +1,6 @@
 import { getDb, now, audit } from './db';
 import { resources, forwards, type FullJobRow } from './records';
-import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pve, taskStatus, type ContainerStatus } from './pve';
+import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pve, taskStatus, volumeSizeGiB, type ContainerStatus } from './pve';
 import { AppError, ensure } from './errors';
 import { unseal } from './crypto';
 import { helper } from './helper';
@@ -11,6 +11,8 @@ import { applyNetwork, removeNetwork } from './network';
 import { removeCatalog } from './catalog';
 import { checkpoint, succeed } from './job-state';
 import { updateGostApi } from './gost-api';
+import { configKey, netConfig, recordAssignedMacs } from './machine-network';
+import { adjustPayload, verifyInterfaces } from './adjust';
 import { enqueue } from './provision';
 
 async function submit(job: FullJobRow, step: string, path: string, method: string, params?: Record<string, unknown>) {
@@ -55,6 +57,80 @@ export async function runJob(job: FullJobRow) {
   const resource = resources().find(r => r.id === job.resource_id);
   ensure(resource, 409, '任务资源不存在');
   const path = containerPath(resource.vmid);
+
+  if (job.type === 'adjust') {
+    const payload = adjustPayload(job.payload);
+    if (job.step === 'pending') {
+      const config = await guestConfig(resource.vmid);
+      ensure(String(config.tags || '').split(';').includes(ownershipTag()), 409, '容器所有权不匹配');
+      ensure(!config.lock, 409, '容器被 PVE 锁定，请在 PVE 解除失效锁后重试');
+      const state = await pve<ContainerStatus>(path + '/status/current');
+      payload.resume = payload.resume || state.status === 'running';
+      getDb().prepare('UPDATE jobs SET payload=?,step=?,updated_at=? WHERE id=?').run(JSON.stringify(payload), payload.networksChanged ? 'adjust-stop' : 'adjust-apply', now(), job.id);
+      job.step = payload.networksChanged ? 'adjust-stop' : 'adjust-apply';
+      return;
+    }
+    if (job.step === 'adjust-stop') {
+      const state = await pve<ContainerStatus>(path + '/status/current');
+      if (state.status === 'running') {
+        ensure(payload.confirmShutdown, 409, '调整网络需要关闭容器，请确认停机调整');
+        await submit(job, 'adjust-stop-wait', path + '/status/shutdown', 'POST'); return;
+      }
+      checkpoint(job, 'adjust-apply'); return;
+    }
+    if (job.step === 'adjust-stop-wait') {
+      if (job.upid) { const state = await taskStatus(job.upid); if (state.status !== 'stopped') return; ensure(state.success, 502, '关闭容器失败，请检查 PVE 任务'); }
+      else ensure((await pve<ContainerStatus>(path + '/status/current')).status === 'stopped', 409, '关机结果未知，请核对 PVE 状态');
+      checkpoint(job, 'adjust-apply'); return;
+    }
+    if (job.step === 'adjust-apply') {
+      const config = await guestConfig(resource.vmid);
+      ensure(String(config.tags || '').split(';').includes(ownershipTag()), 409, '容器所有权不匹配');
+      const params: Record<string, unknown> = { cores: payload.spec.cores, memory: payload.spec.memory, swap: payload.spec.swap };
+      const primary = payload.networks[0];
+      if (primary.dns.length) params.nameserver = primary.dns.join(' ');
+      for (const entry of payload.networks) params[configKey(entry.iface)] = netConfig(entry);
+      const removed = resource.networks.filter(entry => !payload.networks.some(item => item.iface === entry.iface));
+      if (removed.length) params.delete = removed.map(entry => configKey(entry.iface)).join(',');
+      await pve(path + '/config', 'PUT', params);
+      // Compare with the live volume so a retry never adds the same growth twice.
+      const remaining = payload.spec.disk - volumeSizeGiB(String(config.rootfs || ''));
+      if (payload.diskChanged && remaining > 0.5) await submit(job, 'adjust-disk-wait', path + '/resize', 'PUT', { disk: 'rootfs', size: '+' + Math.round(remaining) + 'G' });
+      else checkpoint(job, 'adjust-verify');
+      return;
+    }
+    if (job.step === 'adjust-disk-wait') {
+      ensure(job.upid, 409, '磁盘扩容结果未知，请检查 PVE 任务后重试');
+      const state = await taskStatus(job.upid);
+      if (state.status !== 'stopped') return;
+      ensure(state.success, 502, '磁盘扩容失败，请检查 PVE 任务');
+      checkpoint(job, 'adjust-verify'); return;
+    }
+    if (job.step === 'adjust-verify') {
+      const config = await guestConfig(resource.vmid);
+      ensure(String(config.tags || '').split(';').includes(ownershipTag()), 409, '容器所有权不匹配');
+      if (config.lock) return;
+      const stored = verifyInterfaces(config, resource.networks, payload.networks);
+      const volume = String(config.rootfs || '');
+      const size = volumeSizeGiB(volume);
+      if (size) ensure(Math.round(size) >= payload.spec.disk, 409, '系统盘扩容尚未生效（' + volume + '），请核对后重试');
+      getDb().prepare('UPDATE resources SET spec=?,networks=? WHERE id=?').run(JSON.stringify(payload.spec), JSON.stringify(stored), resource.id);
+      checkpoint(job, payload.resume ? 'adjust-start' : 'adjust-finish'); return;
+    }
+    if (job.step === 'adjust-start') { await submit(job, 'adjust-start-wait', path + '/status/start', 'POST'); return; }
+    if (job.step === 'adjust-start-wait') {
+      if (job.upid) { const state = await taskStatus(job.upid); if (state.status !== 'stopped') return; ensure(state.success, 502, '容器启动失败，请检查 PVE 任务'); }
+      else ensure((await pve<ContainerStatus>(path + '/status/current')).status === 'running', 409, '启动操作结果未知');
+      checkpoint(job, 'adjust-finish'); return;
+    }
+    if (job.step === 'adjust-finish') {
+      audit('system', 'resource.adjust.applied', resource.id, JSON.stringify({ networks: payload.networks.length, disk: payload.spec.disk }));
+      succeed(job);
+      if (payload.networksChanged && forwards(resource.studentId).some(rule => rule.resourceId === resource.id)) enqueue('forward-sync', resource.studentId, resource.id, {});
+      return;
+    }
+    throw new AppError(409, '无法识别的任务阶段');
+  }
   if (job.type === 'forward-sync') {
     await syncForwards(resource.id);
     if (payload.deleteId) getDb().prepare('DELETE FROM forwards WHERE id=? AND resource_id=?').run(payload.deleteId, resource.id);
@@ -148,13 +224,13 @@ export async function runJob(job: FullJobRow) {
   }
   if (job.step === 'create') {
     ensure(job.secret, 409, '创建任务缺少密码');
-    const n = resource.network, s = resource.spec;
-    const net0 = ['name=eth0', 'bridge=' + n.bridge, 'ip=' + resource.ip + '/' + n.cidr.split('/')[1], 'gw=' + n.gateway, ...(n.vlan ? ['tag=' + n.vlan] : [])].join(',');
+    const s = resource.spec, primary = resource.networks[0];
+    const interfaces = Object.fromEntries(resource.networks.map(entry => [configKey(entry.iface), netConfig(entry)]));
     getDb().prepare('UPDATE resources SET state=? WHERE id=?').run('creating', resource.id);
     await submit(job, 'create-wait', nodePath() + '/lxc', 'POST', {
       vmid: resource.vmid, hostname: resource.studentId, ostemplate: s.template, cores: s.cores, memory: s.memory, swap: s.swap,
-      rootfs: s.storage + ':' + s.disk, net0, nameserver: n.dns.join(' '), password: unseal(job.secret),
-      unprivileged: 1, features: s.nesting ? 'nesting=1' : undefined, onboot: 1, start: 0,
+      rootfs: s.storage + ':' + s.disk, ...interfaces, ...(primary.dns.length ? { nameserver: primary.dns.join(' ') } : {}),
+      password: unseal(job.secret), unprivileged: 1, features: s.nesting ? 'nesting=1' : undefined, onboot: 1, start: 0,
       tags: ownershipTag(), description: 'PVE Distribution Center / ' + resource.id,
     }); return;
   }
@@ -163,6 +239,7 @@ export async function runJob(job: FullJobRow) {
     const config = await guestConfig(resource.vmid);
     ensure(String(config.tags || '').split(';').includes(ownershipTag()), 409, 'VMID 被其他资源占用');
     if (config.lock) return;
+    recordAssignedMacs(resource, config);
     checkpoint(job, 'start'); return;
   }
   if (job.step === 'start') { await submit(job, 'start-wait', path + '/status/start', 'POST'); return; }

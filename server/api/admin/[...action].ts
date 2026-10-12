@@ -15,6 +15,7 @@ import { queueGostApi } from '../../lib/gost-api';
 import { bridgeOptions, storageOptions, templateOptions, validateProfileOptions, prepareNetwork, networkInputSchema } from '../../lib/pve-options';
 import { taskPage, auditPage } from '../../lib/activity';
 import { cancelNetworkTask, retryTask } from '../../lib/task-recovery';
+import { adjustResource } from '../../lib/adjust';
 import { guides, removeGuide, saveGuide } from '../../lib/guides';
 
 export default api(async event => {
@@ -104,6 +105,7 @@ export default api(async event => {
   if (action === 'gost' && id === 'apply') return enqueue('gost-configure', null, null, {});
   if (action === 'tasks' && id && operation === 'retry') return retryTask(user, id);
   if (action === 'tasks' && id && operation === 'cancel') return cancelNetworkTask(user, id);
+  if (action === 'resources' && id && operation === 'adjust') return adjustResource(user, id, await body(event, z.record(z.string(), z.unknown())));
   if (action === 'resources' && id && operation) return resourceAction(user, id, operation, await body(event, z.object({ password: password.optional(), newPassword: password.optional(), confirmation: z.string().optional() })));
   if (action === 'forwards' && id && operation) {
     ensure(['enable', 'disable', 'delete'].includes(operation), 400, '操作无效');

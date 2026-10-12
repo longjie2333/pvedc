@@ -17,7 +17,7 @@ export function validateSettings(settings: Settings) {
   if (settings.defaultProfileId) ensure(all.some(p => p.id === settings.defaultProfileId && p.enabled && p.published), 400, '默认配置必须有效且已发布');
   if (settings.registrationOpen) {
     const profile = all.find(p => p.id === settings.defaultProfileId);
-    ensure(profile && networks().some(n => n.id === profile.networkId && n.ready), 400, '请先设置有效默认配置并应用网络');
+    ensure(profile && profile.networkIds.every(id => networks().some(n => n.id === id && n.ready)), 400, '请先设置有效默认配置并应用全部网络');
   }
   const leases = getDb().prepare('SELECT public_port FROM forwards').all() as { public_port: number }[];
   ensure(leases.every(r => r.public_port >= settings.portStart && r.public_port <= settings.portEnd && !settings.reservedPorts.includes(r.public_port) && r.public_port !== settings.webTunnelPort), 409, '端口范围或保留端口与现有转发冲突');
@@ -60,15 +60,16 @@ export function importStudents(csv: string) {
 export function exportStudents() {
   // Prefix formula-looking text so spreadsheet programs cannot execute roster cells.
   const safe = (text: string) => /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
-  return '\uFEFF' + stringify(adminStudents().map(s => ({ '学号': s.id, '姓名': safe(s.name), '班级': safe(s.className), '配置ID': s.profileId || '', '认领密钥': s.claimKey, '认领状态': s.claimed ? '已认领' : '未认领', 'VMID': s.resource?.vmid || '', 'IP': s.resource?.ip || '' })), { header: true });
+  return '\uFEFF' + stringify(adminStudents().map(s => ({ '学号': s.id, '姓名': safe(s.name), '班级': safe(s.className), '配置ID': s.profileId || '', '认领密钥': s.claimKey, '认领状态': s.claimed ? '已认领' : '未认领', 'VMID': s.resource?.vmid || '', 'IP': s.resource?.networks[0].ip || '' })), { header: true });
 }
 export function saveProfile(input: unknown, id: string = randomUUID()) {
   const spec = profileSchema.parse(input);
-  ensure(networks().some(n => n.id === spec.networkId), 400, '网络配置不存在');
+  const all = networks();
+  for (const networkId of spec.networkIds) ensure(all.some(n => n.id === networkId), 400, '网络配置不存在');
   ensure(spec.template.split('/').pop()?.startsWith(spec.distro + '-'), 400, '模板发行版与配置不一致');
   const settings = getSettings();
   if (id === settings.defaultProfileId) ensure(spec.enabled && spec.published, 409, '默认配置不能停用或取消发布，请先更换默认配置');
-  getDb().prepare('INSERT INTO profiles(id,spec,network_id) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET spec=excluded.spec,network_id=excluded.network_id').run(id, JSON.stringify(spec), spec.networkId);
+  getDb().prepare('INSERT INTO profiles(id,spec) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET spec=excluded.spec').run(id, JSON.stringify(spec));
   audit('admin', 'profile.save', id);
   return { ...spec, id };
 }
@@ -80,11 +81,11 @@ export function saveNetwork(input: unknown, id: string = randomUUID()) {
   const changingTopology = existing && topologyKeys.some(key => existing[key] !== spec[key]);
   ensure(!networkHasTask(id), 409, '网络有进行中或待处理任务，请先完成该任务');
   ensure(!changingTopology || !existing?.ready, 409, '已应用网络请先撤销，再修改网络拓扑');
-  const inUse = resources().filter(r => r.networkId === id);
+  const inUse = resources().filter(r => r.networks.some(entry => entry.networkId === id));
   if (inUse.length && existing) {
     ensure(!changingTopology, 409, '网络有在用资源，不能修改拓扑、网关或 VLAN');
     const ips = new Set(availableIps(spec));
-    ensure(inUse.every(r => ips.has(r.ip)), 409, '新的范围排除了已分配 IP');
+    ensure(inUse.every(r => r.networks.filter(entry => entry.networkId === id).every(entry => ips.has(entry.ip))), 409, '新的范围排除了已分配 IP');
   }
   for (const network of networks().filter(n => n.id !== id)) {
     ensure(ipNumber(spec.end) < ipNumber(network.start) || ipNumber(spec.start) > ipNumber(network.end), 409, '地址池与其他网络重叠');
@@ -108,6 +109,8 @@ export function removeCatalog(kind: 'students' | 'profiles' | 'networks', id: st
   if (kind === 'networks') {
     ensure(!networkHasTask(id), 409, '网络任务尚未完成，请先处理该任务');
     ensure(!networks().find(n => n.id === id)?.ready, 409, '已应用网络不能直接删除，请先撤销网络');
+    ensure(!profiles().some(profile => profile.networkIds.includes(id)), 409, '资源配置仍引用此网络');
+    ensure(!resources().some(resource => resource.networks.some(entry => entry.networkId === id)), 409, '仍有机器使用此网络');
   }
   const queries = { students: 'DELETE FROM students WHERE id=?', profiles: 'DELETE FROM profiles WHERE id=?', networks: 'DELETE FROM networks WHERE id=?' };
   getDb().prepare(queries[kind]).run(id);
