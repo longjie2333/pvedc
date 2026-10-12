@@ -88,7 +88,7 @@ export function ResourceAdjust({ resource, networks, onClose }: { resource: Reso
   const networkName = (id: string) => networks.find(network => network.id === id)?.name || '已删除网络';
 
   return <>
-    <Modal open={!confirming} onClose={onClose} title="调整机器配置" description={'VMID ' + resource.vmid + ' · ' + resource.studentId + '。修改将应用到现有容器：规格在线生效，网络变更需要先关机。'}
+    <Modal open={!confirming} onClose={onClose} title="调整机器配置" description={'VMID ' + resource.vmid + ' · ' + resource.studentId}
       footer={<Button form="machine-adjust" type="submit" loading={command.pending} disabled={errors.length > 0}>保存并应用</Button>}>
       <Form id="machine-adjust" className="flex flex-col gap-5" onSubmit={submitForm}><Feedback error={command.error}/><Feedback error={bridges.error?.message}/>
         <div className="form-grid">
@@ -97,37 +97,41 @@ export function ResourceAdjust({ resource, networks, onClose }: { resource: Reso
           <SpecCombobox name="swap" label="交换空间 MiB" initial={resource.spec.swap} presets={[0, 512, 1024, 2048]} min={0} max={1048576}/>
           <SpecCombobox name="disk" label="系统盘 GiB（只能扩容）" initial={resource.spec.disk} presets={[8, 16, 32, 64, 128]} min={resource.spec.disk} max={65536}/>
         </div>
-        <section className="rounded-lg border p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <section className="col-span-full rounded-lg border">
+          <div className="p-4 flex items-center justify-between">
             <div><strong className="text-sm">网络接口</strong><p className="text-xs text-muted-foreground">可改用其他网络配置或自定义网桥配置；第一块网卡承担默认网关与 DNS。</p></div>
             <Button type="button" size="icon-sm" variant="outline" aria-label="添加网卡" disabled={rows.length >= 8} onClick={() => setRows(previous => [...previous, { iface: 'eth' + previous.length, source: 'existing', networkId: '', bridge: '', cidr: '', ip: '', gateway: '', dns: '', vlan: '', macMode: 'keep', mac: '' }])}><Plus/></Button>
           </div>
-          <div className="flex flex-col gap-4">
-            {rows.map((row, index) => <div key={index} className="flex flex-col gap-3 rounded-lg border p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong className="text-sm">{row.iface}</strong><span className="text-xs text-muted-foreground">{index === 0 ? '主网卡' : '第 ' + (index + 1) + ' 块网卡'}</span>
-                <div className="w-52"><Choice label="配置方式" value={row.source} onChange={value => update(index, { source: value as Row['source'] })} items={[{ value: 'existing', label: '使用已有网络配置' }, { value: 'custom', label: '自定义配置' }]}/></div>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={'上移 ' + row.iface} disabled={index === 0} onClick={() => move(index, -1)}><ChevronUp/></Button>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={'下移 ' + row.iface} disabled={index === rows.length - 1} onClick={() => move(index, 1)}><ChevronDown/></Button>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={'删除 ' + row.iface} disabled={rows.length <= 1} onClick={() => setRows(previous => previous.filter((_, itemIndex) => itemIndex !== index).map((item, itemIndex) => ({ ...item, iface: 'eth' + itemIndex })))}><Trash2/></Button>
+          <div className="flex flex-col">
+            {rows.map((row, index) => <div key={index} className="flex flex-col gap-3 border-t p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2"><strong>{row.iface}</strong><span className="text-xs text-muted-foreground">{index === 0 ? '主网卡' : '第 ' + (index + 1) + ' 块网卡'}</span></div>
+                <span className="text-xs text-muted-foreground">{row.source === 'existing' ? (row.networkId ? '使用 ' + networkName(row.networkId) + ' 的地址池；未移动的网卡保留当前地址' : '请选择网络配置') : '自定义配置不占用地址池'}</span>
               </div>
-              {row.source === 'existing' ? <Choice label="网络配置" value={row.networkId} onChange={value => update(index, { networkId: value })} items={[{ value: '', label: '请选择' }, ...networks.map(network => ({ value: network.id, label: network.name + (network.ready ? '' : '（待应用）') }))]}/> : <div className="form-grid">
-                <div className="inline-field-action"><Choice label="网桥 / VNet" value={row.bridge} onChange={value => update(index, { bridge: value })} items={[{ value: '', label: '请选择' }, ...bridgeItems]}/><Button type="button" size="icon" variant="outline" aria-label="刷新网桥选项" title="刷新网桥选项" loading={bridges.isFetching} onClick={() => void bridges.refetch()}><RefreshCw/></Button></div>
-                <TextField label="子网 CIDR" value={row.cidr} onChange={event => update(index, { cidr: event.target.value })} placeholder="192.168.10.0/24" required/>
-                <TextField label="IP 地址" value={row.ip} onChange={event => update(index, { ip: event.target.value })} placeholder="192.168.10.20" required/>
-                <TextField label={index === 0 ? '网关' : '网关（由第一块网卡承担）'} value={row.gateway} onChange={event => update(index, { gateway: event.target.value })} disabled={index !== 0} placeholder={index === 0 ? '192.168.10.1' : undefined}/>
-                <TextField label={index === 0 ? 'DNS（逗号分隔）' : 'DNS（由第一块网卡承担）'} value={row.dns} onChange={event => update(index, { dns: event.target.value })} disabled={index !== 0} placeholder={index === 0 ? '223.5.5.5' : undefined}/>
-                <TextField label="VLAN（可留空）" type="number" value={row.vlan} onChange={event => update(index, { vlan: event.target.value })}/>
-              </div>}
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="w-56"><Choice label="MAC 地址" value={row.macMode} onChange={value => update(index, { macMode: value as MacMode })} items={[{ value: 'keep', label: '保持当前 MAC' }, { value: 'set', label: '指定新 MAC' }, { value: 'auto', label: '留空由 PVE 自动分配' }]}/></div>
+              <div className="grid grid-cols-[1fr_auto_auto_auto] items-end gap-2">
+                <Choice label="配置模式" value={row.source} onChange={value => update(index, { source: value as Row['source'] })} items={[{ value: 'existing', label: '使用已有网络配置' }, { value: 'custom', label: '自定义配置' }]}/>
+                <Button type="button" size="icon" variant="ghost" aria-label={'上移 ' + row.iface} disabled={index === 0} onClick={() => move(index, -1)}><ChevronUp/></Button>
+                <Button type="button" size="icon" variant="ghost" aria-label={'下移 ' + row.iface} disabled={index === rows.length - 1} onClick={() => move(index, 1)}><ChevronDown/></Button>
+                <Button type="button" size="icon" variant="ghost" aria-label={'删除 ' + row.iface} disabled={rows.length <= 1} onClick={() => setRows(previous => previous.filter((_, itemIndex) => itemIndex !== index).map((item, itemIndex) => ({ ...item, iface: 'eth' + itemIndex })))}><Trash2/></Button>
+              </div>
+              <div className="form-grid">
+                {row.source === 'existing' ? <Choice label="网络配置" value={row.networkId} onChange={value => update(index, { networkId: value })} items={[{ value: '', label: '请选择' }, ...networks.map(network => ({ value: network.id, label: network.name + (network.ready ? '' : '（待应用）') }))]}/> : <>
+                  <div className="inline-field-action"><Choice label="网桥 / VNet" value={row.bridge} onChange={value => update(index, { bridge: value })} items={[{ value: '', label: '请选择' }, ...bridgeItems]}/><Button type="button" size="icon" variant="outline" aria-label="刷新网桥选项" title="刷新网桥选项" loading={bridges.isFetching} onClick={() => void bridges.refetch()}><RefreshCw/></Button></div>
+                  <TextField label="子网 CIDR" value={row.cidr} onChange={event => update(index, { cidr: event.target.value })} placeholder="192.168.10.0/24" required/>
+                  <TextField label="IP 地址" value={row.ip} onChange={event => update(index, { ip: event.target.value })} placeholder="192.168.10.20" required/>
+                  <TextField label={index === 0 ? '网关' : '网关（由第一块网卡承担）'} value={row.gateway} onChange={event => update(index, { gateway: event.target.value })} disabled={index !== 0} placeholder={index === 0 ? '192.168.10.1' : undefined}/>
+                  <TextField label={index === 0 ? 'DNS（逗号分隔）' : 'DNS（由第一块网卡承担）'} value={row.dns} onChange={event => update(index, { dns: event.target.value })} disabled={index !== 0} placeholder={index === 0 ? '223.5.5.5' : undefined}/>
+                  <TextField label="VLAN（可留空）" type="number" value={row.vlan} onChange={event => update(index, { vlan: event.target.value })}/>
+                </>}
+                <Choice label="MAC 地址" value={row.macMode} onChange={value => update(index, { macMode: value as MacMode })} items={[{ value: 'keep', label: '保持当前 MAC' }, { value: 'set', label: '指定新 MAC' }, { value: 'auto', label: '留空由 PVE 自动分配' }]}/>
                 {row.macMode === 'set' && <TextField label="新 MAC 地址" value={row.mac} onChange={event => update(index, { mac: event.target.value })} placeholder="AA:BB:CC:DD:EE:FF" required/>}
-                <small className="text-xs text-muted-foreground">{row.source === 'existing' ? (row.networkId ? '使用 ' + networkName(row.networkId) + ' 的地址池；未移动的网卡保留当前地址' : '请选择网络配置') : '自定义配置不占用地址池'}</small>
               </div>
             </div>)}
           </div>
+          <div className="border-t px-4 py-2">
+            {errors.length > 0 && errors.map(issue => <Feedback error={issue || undefined}/>)}
+          </div>
         </section>
-        {errors.length > 0 && <div className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"><ul className="m-0 flex flex-col gap-1 pl-5">{errors.map(issue => <li key={issue}>{issue}</li>)}</ul></div>}
       </Form>
     </Modal>
     <Modal destructive open={confirming} onClose={() => setConfirming(false)} title="调整网络需要先关机" description="容器正在运行。平台将先执行优雅关机，应用网络与规格变更，然后自动重新启动容器；请确认可以中断服务。"
