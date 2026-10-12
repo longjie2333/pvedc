@@ -3,7 +3,7 @@ import { availableIps, calculateCapacity, selectProfile, validateNetwork } from 
 import { settingsSchema, type NetworkSpec, type Profile } from '../shared/schema';
 
 const network: NetworkSpec = { name: 'test', mode: 'nat', bridge: 'dctest', cidr: '172.20.0.0/24', gateway: '172.20.0.1', start: '172.20.0.1', end: '172.20.0.5', dns: ['1.1.1.1'], excluded: ['172.20.0.4'], vlan: null };
-const base: Profile = { id: 'default', name: 'default', enabled: true, published: true, cores: 2, memory: 2048, swap: 0, disk: 8, template: 'local:vztmpl/ubuntu-test.tar.zst', distro: 'ubuntu', storage: 'local-lvm', networkId: 'network', nesting: false };
+const base: Profile = { id: 'default', name: 'default', enabled: true, published: true, cores: 2, memory: 2048, swap: 0, disk: 8, template: 'local:vztmpl/ubuntu-test.tar.zst', distro: 'ubuntu', storage: 'local-lvm', networkId: 'network', nesting: false, initialForwards: [] };
 describe('allocation policy', () => {
   const all = [base, { ...base, id: 'assigned', published: false }, { ...base, id: 'chosen' }, { ...base, id: 'disabled', enabled: false }];
   it('locks an administrator assignment even in self selection mode', () => {

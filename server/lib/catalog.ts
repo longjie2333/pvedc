@@ -4,8 +4,9 @@ import { stringify } from 'csv-stringify/sync';
 import { networkSchema, profileSchema, studentSchema, type NetworkSpec, type Settings, type StudentInput } from '../../shared/schema';
 import { audit, getDb, now } from './db';
 import { ensure } from './errors';
+import { saveStudentKey } from './claim-key';
 import { availableIps, ipNumber, validateNetwork } from './allocation';
-import { networks, profiles, resources, students, studentDeleting } from './records';
+import { adminStudents, networks, profiles, resources, students, studentDeleting } from './records';
 import { revokeSubject } from './sessions';
 import { getSettings } from './settings';
 
@@ -33,6 +34,7 @@ export function saveStudents(inputs: StudentInput[]) {
     const query = getDb().prepare('INSERT INTO students(id,name,class_name,profile_id,enabled,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,class_name=excluded.class_name,profile_id=excluded.profile_id,enabled=excluded.enabled');
     for (const item of inputs) {
       query.run(item.id, item.name, item.className, item.profileId, Number(item.enabled), now());
+      if (item.claimKey !== undefined) saveStudentKey(item.id, item.claimKey);
       if (!item.enabled) revokeSubject(item.id);
     }
     audit('admin', 'students.save', undefined, String(inputs.length));
@@ -48,15 +50,17 @@ export function importStudents(csv: string) {
   const entries = rows.map(row => {
     const id = row['学号'] ?? row.id, previous = existing.get(id);
     const explicitProfile = Object.hasOwn(row, '配置ID') || Object.hasOwn(row, 'profileId');
+    const explicitKey = Object.hasOwn(row, '认领密钥') || Object.hasOwn(row, 'claimKey');
     return studentSchema.parse({ id, name: row['姓名'] ?? row.name, className: row['班级'] ?? row.className ?? previous?.className ?? '',
-      profileId: explicitProfile ? row['配置ID'] || row.profileId || null : previous?.profileId || null, enabled: previous?.enabled ?? true });
+      profileId: explicitProfile ? row['配置ID'] || row.profileId || null : previous?.profileId || null, enabled: previous?.enabled ?? true,
+      claimKey: explicitKey ? row['认领密钥'] || row.claimKey || '' : undefined });
   });
   return saveStudents(entries);
 }
 export function exportStudents() {
   // Prefix formula-looking text so spreadsheet programs cannot execute roster cells.
   const safe = (text: string) => /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
-  return '\uFEFF' + stringify(students().map(s => ({ '学号': s.id, '姓名': safe(s.name), '班级': safe(s.className), '配置ID': s.profileId || '', '认领状态': s.claimed ? '已认领' : '未认领', 'VMID': s.resource?.vmid || '', 'IP': s.resource?.ip || '' })), { header: true });
+  return '\uFEFF' + stringify(adminStudents().map(s => ({ '学号': s.id, '姓名': safe(s.name), '班级': safe(s.className), '配置ID': s.profileId || '', '认领密钥': s.claimKey, '认领状态': s.claimed ? '已认领' : '未认领', 'VMID': s.resource?.vmid || '', 'IP': s.resource?.ip || '' })), { header: true });
 }
 export function saveProfile(input: unknown, id: string = randomUUID()) {
   const spec = profileSchema.parse(input);

@@ -11,6 +11,7 @@ import { applyNetwork, removeNetwork } from './network';
 import { removeCatalog } from './catalog';
 import { checkpoint, succeed } from './job-state';
 import { updateGostApi } from './gost-api';
+import { enqueue } from './provision';
 
 async function submit(job: FullJobRow, step: string, path: string, method: string, params?: Record<string, unknown>) {
   checkpoint(job, step);
@@ -182,8 +183,10 @@ export async function runJob(job: FullJobRow) {
       revokeSubject(resource.studentId);
     }
     getDb().prepare('UPDATE resources SET state=? WHERE id=?').run('ready', resource.id);
-    if (forwards(resource.studentId).length) await syncForwards(resource.id);
-    succeed(job); return;
+    const hasForwards = forwards(resource.studentId).some(rule => rule.resourceId === resource.id);
+    succeed(job);
+    if (hasForwards) enqueue('forward-sync', resource.studentId, resource.id, {});
+    return;
   }
   throw new AppError(409, '无法识别的任务阶段');
 }

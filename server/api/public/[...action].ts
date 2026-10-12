@@ -16,16 +16,16 @@ export default api(async event => {
   if (event.req.method === 'GET' && action === 'roster') {
     rateLimit('roster:' + clientIp(event), 120, 60);
     const query = z.string().trim().max(100).parse(event.url.searchParams.get('q') || '');
-    const matches = settings.registrationOpen ? getDb().prepare('SELECT id,name,class_name,profile_id FROM students WHERE enabled=1 AND password_hash IS NULL AND (instr(lower(id),lower(?))>0 OR instr(name,?)>0) ORDER BY id LIMIT 100').all(query, query) as { id: string; name: string; class_name: string; profile_id: string | null }[] : [];
+    const matches = settings.registrationOpen ? getDb().prepare('SELECT id,name,class_name,profile_id,EXISTS(SELECT 1 FROM student_keys sk WHERE sk.student_id=students.id) key_required FROM students WHERE enabled=1 AND password_hash IS NULL AND (instr(lower(id),lower(?))>0 OR instr(name,?)>0) ORDER BY id LIMIT 100').all(query, query) as { id: string; name: string; class_name: string; profile_id: string | null; key_required: number }[] : [];
     return { open: settings.registrationOpen, selfSelection: settings.selfSelection,
-      students: matches.map(s => ({ id: s.id, name: s.name, className: s.class_name, assigned: !!s.profile_id })),
+      students: matches.map(s => ({ id: s.id, name: s.name, className: s.class_name, assigned: !!s.profile_id, keyRequired: !!s.key_required })),
       profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name, cores: p.cores, memory: p.memory, disk: p.disk, distro: p.distro })), defaultProfileId: settings.defaultProfileId,
     };
   }
   if (event.req.method === 'POST' && action === 'claim') {
     rateLimit('claim:' + clientIp(event), 60);
-    const input = await body(event, z.object({ studentId, password, profileId: z.string().optional() }));
-    const result = await allocate(input.studentId, input.password, input.profileId, true);
+    const input = await body(event, z.object({ studentId, password, profileId: z.string().optional(), claimKey: z.string().max(64).optional() }));
+    const result = await allocate(input.studentId, input.password, input.profileId, true, input.claimKey);
     const session = await issueSession('student', input.studentId);
     sessionCookies(event, session);
     return { ...result, actor: session.actor };

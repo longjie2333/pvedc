@@ -8,18 +8,20 @@ import { forwardSchema, password } from '../../../shared/schema';
 import { history, monitor } from '../../lib/monitor';
 import { taskPage } from '../../lib/activity';
 import { retryTask } from '../../lib/task-recovery';
+import { publishedGuideViews } from '../../lib/guides';
 
 export default api(async event => {
   const user = await actor(event, 'student');
   const [, , , action, id, operation] = event.url.pathname.split('/');
   const resource = resources().find(r => r.studentId === user.sub);
   if (event.req.method === 'GET') {
+    if (action === 'guides') return { guides: await publishedGuideViews(resource, forwards(user.sub), getSettings().publicHost) };
     if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'overview') {
       const settings = getSettings();
       return { student: students().find(s => s.id === user.sub), resource, forwards: forwards(user.sub),
         publicHost: settings.publicHost, selfSelection: settings.selfSelection, defaultProfileId: settings.defaultProfileId,
-        profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name })),
+        profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name, cores: p.cores, memory: p.memory, disk: p.disk, distro: p.distro })),
         forwarding: { quota: settings.forwardQuota, portStart: settings.portStart, portEnd: settings.portEnd },
       };
     }

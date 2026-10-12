@@ -57,6 +57,19 @@
 
 ## 后续实施注意
 
+### 2026-10-12 认领密钥（本地开发与测试）
+
+- 目标：名单支持可选认领密钥；密钥为空时认领无需填写，非空时必须正确填写。管理端可查看、可编辑、随 CSV 导入导出。
+- 实现：新增 `student_keys` 表（`seal()` 加密存储、外键级联删除），`shared/schema.ts` 增加 `claimKey` 校验（trim、1–64 位、字母或数字开头，仅字母数字与 `.` `_` `-`），`server/lib/claim-key.ts` 提供加解密与常量时间比较，`allocate()` 在认领分支按同一模式（事务外快速失败 + 事务内二次校验）检查密钥，公开接口 `public/claim` 接受可选 `claimKey`。
+- 公开名单：`GET /api/public/roster` 仅新增布尔 `keyRequired`，不返回密钥；`admin/overview` 与导出使用 `adminStudents()`（含 `claimKey`），其余接口仍返回不含密钥的 `Student`。
+- 导入语义：CSV 含 `认领密钥`/`claimKey` 列时该列为权威（留空清除、缺列保留原值），与 `配置ID` 列先例一致；导出新增 `认领密钥` 列。
+- 重置认领保留密钥，界面文案已注明；密钥限流为每学号 8 次 / 5 分钟（`rate_limit` 现有机制）。
+- 库结构：数据层仍无迁移机制，`CREATE TABLE IF NOT EXISTS` 引导会在已有库（含本地 `.data/pvedc.sqlite` 与线上升级库）启动时自动建表。本轮用本地开发库副本验证：旧结构启动后自动出现 `student_keys`，原有学生数据不变。
+- 本地验证：`pnpm typecheck`、构建、87 项 Vitest（含新增 `tests/claim-key.test.ts` 8 项与 HTTP 集成用例）、6 项 Python helper 测试、Playwright（claim 与 admin 两条 spec）通过；`guides.spec.ts` 两条失败在未改动的 HEAD 上同样复现，属既有问题，未在本轮修改。
+- 本轮按用户要求只做本地开发与测试：未部署、未覆盖线上、未做线上/隔离 PVE 联调、未推送、未合并主分支。
+
+## 后续实施注意（历史）
+
 - gost API 专用接口为 `POST /api/admin/gost/api`，普通设置接口已禁止直接修改 API 地址/用户/密码。`gost()` 支持显式候选配置用于验证。
 - API 更新任务阶段：pending → api-apply → api-verify → 完成；失败转 api-rollback，恢复成功后任务失败且可重新提交，恢复失败则保留 attention 检查点。配置快照在 SQLite job.secret 中加密保存。
 - 所有功能已实施并逐项提交到 `dev`，未合并 `master`。正式数据与历史待处理任务保留，线上代码以本地版本覆盖。

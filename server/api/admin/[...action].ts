@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { api, actor, body } from '../../lib/http';
 import { ensure } from '../../lib/errors';
-import { forwards, networks, profiles, resources, students, taskForActor } from '../../lib/records';
+import { adminStudents, forwards, networks, profiles, resources, students, taskForActor } from '../../lib/records';
 import { getSettings, safeSettings, saveSettings } from '../../lib/settings';
 import { audit, getDb } from '../../lib/db';
 import { exportStudents, importStudents, removeCatalog, resetClaim, saveNetwork, saveProfile, saveStudents, validateSettings } from '../../lib/catalog';
@@ -15,15 +15,17 @@ import { queueGostApi } from '../../lib/gost-api';
 import { bridgeOptions, storageOptions, templateOptions, validateProfileOptions, prepareNetwork, networkInputSchema } from '../../lib/pve-options';
 import { taskPage, auditPage } from '../../lib/activity';
 import { cancelNetworkTask, retryTask } from '../../lib/task-recovery';
+import { guides, removeGuide, saveGuide } from '../../lib/guides';
 
 export default api(async event => {
   const user = await actor(event, 'admin');
   const [, , , action, id, operation] = event.url.pathname.split('/');
   if (event.req.method === 'GET') {
-    if (action === 'overview') return { students: students(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
+    if (action === 'overview') return { students: adminStudents(), resources: resources(), profiles: profiles(), networks: networks(), taskCounts: { attention: (getDb().prepare('SELECT COUNT(*) count FROM jobs WHERE state=?').get('attention') as { count: number }).count }, forwards: forwards() };
     if (action === 'tasks' && id === 'batch') return batchStatus(operation);
     if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'settings') return safeSettings();
+    if (action === 'guides') return id ? guides().find(guide => guide.id === id) || ensure(false, 404, '指导书不存在') : guides();
     if (action === 'gost' && id === 'authorization') {
       const settings = getSettings();
       ensure(settings.gostUser && settings.gostPassword, 409, '请先配置 gost API 用户名和密码');
@@ -54,18 +56,9 @@ export default api(async event => {
       if (operation === 'ports') return monitor(resource, true);
       if (operation === 'history') return history(resource);
     }
-    if (action === 'deployment') {
-      const s = getSettings();
-      const host = s.publicOrigin ? new URL(s.publicOrigin).hostname : 'example.invalid';
-      const wildcard = s.webBindHost === '0.0.0.0';
-      const localTarget = wildcard ? '127.0.0.1' : s.webBindHost;
-      ensure(/^[a-zA-Z0-9.-]+$/.test(host), 400, '公网域名无效');
-      return { caddy: s.publicOrigin ? host + ' {\n  reverse_proxy ' + localTarget + ':' + s.webTunnelPort + '\n}\n' : '# 在公网转发页面填写公网 HTTPS 地址后生成 Caddy 配置。',
-        proxy: { scheme: 'http', host: wildcard ? null : s.webBindHost, port: s.webTunnelPort, websocketSupport: true },
-        relay: { services: [{ name: 'pvedc-relay', addr: ':' + s.relayPort, handler: { type: 'relay', auth: { username: s.relayUser, password: '<填写 Relay 密码>' }, metadata: { bind: true } }, listener: { type: 'tls', tls: { certFile: '/etc/gost/server.crt', keyFile: '/etc/gost/server.key' } } }] },
-        notes: '公网服务器运行 Relay + TLS 并开放 Relay 端口及学生端口范围。Web 通道绑定 ' + s.webBindHost + '，地址属于 Relay 所在的网络环境。Relay 在宿主机运行时，同机反代使用回环地址，Docker 反代使用宿主机网关；Relay 在 Docker 桥接网络运行时，建议绑定 0.0.0.0，同网络反代使用 Relay 容器名，网络外访问须映射端口。学生端口池需要分别映射 TCP 和 UDP。Caddy 示例按同宿主机部署生成，容器部署时请替换上游地址。',
-      };
-    }
+  }
+  if (event.req.method === 'DELETE' && action === 'guides' && id) {
+    ensure(guides().some(guide => guide.id === id), 404, '指导书不存在'); removeGuide(id); audit(user.sub, 'guide.delete', id); return { ok: true };
   }
   if (event.req.method === 'DELETE' && ['profiles', 'networks'].includes(action) && id) {
     removeCatalog(action as 'profiles' | 'networks', id); return { ok: true };
@@ -76,6 +69,10 @@ export default api(async event => {
     ensure(!['gostApi', 'gostUser', 'gostPassword'].some(key => Object.hasOwn(patch, key)), 400, 'API 地址与凭据请通过保存并同步到宿主机修改');
     const settings = settingsSchema.parse({ ...getSettings(), ...patch });
     validateSettings(settings); saveSettings(settings); audit(user.sub, 'settings.save'); return safeSettings();
+  }
+  if (action === 'guides') {
+    ensure(!id || guides().some(guide => guide.id === id), 404, '指导书不存在');
+    const guide = saveGuide(await body(event, z.record(z.string(), z.unknown())), id); audit(user.sub, id ? 'guide.update' : 'guide.create', guide.id); return guide;
   }
   if (action === 'students') {
     if (id === 'batch') return studentBatch(user, await body(event, z.record(z.string(), z.unknown())));

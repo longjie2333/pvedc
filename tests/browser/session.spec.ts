@@ -43,7 +43,7 @@ test('an expired refresh returns to login and incorrect credentials never trigge
   await page.getByLabel('学号', { exact: true }).fill('a00123');
   await page.getByLabel('密码', { exact: true }).fill('Incorrect-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '操作失败' })).toContainText('学号或密码不正确');
+  await expect(page.getByRole('alert')).toContainText('学号或密码不正确');
   expect(refreshes).toBe(1);
 });
 

@@ -6,6 +6,7 @@ const ports = [
   { protocol: 'tcp', address: '0.0.0.0', port: 8080, processes: [{ name: 'node', pid: 42 }] },
   { protocol: 'udp', address: '127.0.0.53', port: 53, processes: [{ name: 'systemd-resolve', pid: 10 }] },
   { protocol: 'udp', address: '0.0.0.0', port: 9000, processes: [{ name: 'udp-service', pid: 88 }] },
+  { protocol: 'tcp', address: '127.0.0.1%lo', port: 9443, processes: [{ name: 'local-service', pid: 99 }] },
 ];
 async function mockWorkspace(page: Page, role: 'student' | 'admin') {
   const submissions: Record<string, unknown>[] = [], rules: Record<string, unknown>[] = [];
@@ -25,6 +26,7 @@ async function mockWorkspace(page: Page, role: 'student' | 'admin') {
       rules.push({ ...body, id: 'forward-' + submissions.length, publicPort: 11000 + submissions.length, enabled: true, state: 'ready' });
       json = { id: 'forward-' + submissions.length };
     } else if (path === '/api/me/tasks') json = { items: [], total: 0, page: 1, pageSize: 20 };
+    else if (path === '/api/me/guides') json = { guides: [] };
     else json = { data: null, error: null, updatedAt: Date.now() };
     return route.fulfill({ json });
   });
@@ -34,7 +36,7 @@ async function mockWorkspace(page: Page, role: 'student' | 'admin') {
 test('student ports are fetched only in the forwarding dialog and object selection carries the protocol', async ({ page }) => {
   const workspace = await mockWorkspace(page, 'student');
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '测试同学，欢迎回来' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /a00123/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: '系统监听端口' })).toHaveCount(0);
   expect(workspace.portReads()).toBe(0);
   await page.getByRole('button', { name: '添加转发', exact: true }).click();
@@ -42,6 +44,8 @@ test('student ports are fetched only in the forwarding dialog and object selecti
   await picker.click();
   await expect(page.getByRole('option', { name: /53.*systemd-resolve/ })).toHaveAttribute('aria-disabled', 'true');
   await expect(page.getByRole('option', { name: /9000/ })).toContainText('UDP · 0.0.0.0 · udp-service');
+  await expect(page.getByRole('option', { name: /9443/ })).toContainText('TCP · 127.0.0.1 · local-service');
+  await expect(page.getByRole('option', { name: /9443/ })).not.toContainText('%lo');
   await page.getByRole('option', { name: /9000/ }).click();
   await expect(picker).toContainText('udp-service');
   await page.screenshot({ path: 'test-results/student-forward-dialog.png', fullPage: true });

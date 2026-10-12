@@ -1,15 +1,33 @@
 import { randomUUID } from 'node:crypto';
-import type { Actor, ForwardInput } from '../../shared/schema';
+import type { Actor, ForwardInput, Profile } from '../../shared/schema';
 import { getDb, now, audit } from './db';
 import { ensure } from './errors';
 import { seal } from './crypto';
-import { hashPassword, verifyPassword } from './auth';
+import { hashPassword, rateLimit, verifyPassword } from './auth';
+import { matchesClaimKey, studentKey } from './claim-key';
 import { revokeSubject } from './sessions';
 import { getSettings } from './settings';
 import { forwards, profiles, resources, type StudentRow } from './records';
 import { selectProfile } from './allocation';
 import { budgetFor, inventory } from './inventory';
 import { containerExists, containerPath, guestConfig, nodePath, ownershipTag, pve, type ContainerStatus } from './pve';
+
+function reserveInitialForwards(resourceId: string, studentId: string, profile: Profile) {
+  const initialForwards = profile.initialForwards || [];
+  if (!initialForwards.length) return;
+  const settings = getSettings(), existing = forwards();
+  ensure(initialForwards.length <= settings.forwardQuota, 409, '初始化转发数量超过每人配额');
+  const used = new Set(existing.map(rule => rule.protocol + ':' + rule.publicPort));
+  for (const input of initialForwards) {
+    let publicPort = input.publicPort ?? settings.portStart;
+    if (!input.publicPort) while (publicPort <= settings.portEnd && (used.has(input.protocol + ':' + publicPort) || settings.reservedPorts.includes(publicPort) || publicPort === settings.webTunnelPort)) publicPort++;
+    ensure(publicPort >= settings.portStart && publicPort <= settings.portEnd, 409, '初始化转发没有可用公网端口');
+    ensure(!used.has(input.protocol + ':' + publicPort) && !settings.reservedPorts.includes(publicPort) && publicPort !== settings.webTunnelPort, 409, '初始化转发公网端口已占用');
+    used.add(input.protocol + ':' + publicPort);
+    getDb().prepare('INSERT INTO forwards(id,student_id,resource_id,protocol,public_port,target_port,note,state) VALUES(?,?,?,?,?,?,?,?)')
+      .run(randomUUID(), studentId, resourceId, input.protocol, publicPort, input.targetPort, input.note, 'pending');
+  }
+}
 
 export function enqueue(type: string, studentId: string | null, resourceId: string | null, payload: Record<string, unknown>, secret?: string) {
   const existing = resourceId ? getDb().prepare('SELECT id FROM jobs WHERE resource_id=? AND state IN (?,?,?)').get(resourceId, 'queued', 'running', 'attention') as { id: string } | undefined : undefined;
@@ -20,13 +38,21 @@ export function enqueue(type: string, studentId: string | null, resourceId: stri
   return { taskId: id };
 }
 
-export async function allocate(studentId: string, password: string, selected?: string, claim = false) {
+export async function allocate(studentId: string, password: string, selected?: string, claim = false, suppliedKey?: string) {
   const settings = getSettings();
   ensure(settings.registrationOpen, 403, '管理员尚未开放资源申请');
   const student = getDb().prepare('SELECT * FROM students WHERE id=?').get(studentId) as StudentRow | undefined;
   ensure(student?.enabled, 404, '学号不存在或已停用');
-  if (claim) ensure(!student.password_hash, 409, '该学号已经认领，请登录');
-  else ensure(student.password_hash && await verifyPassword(student.password_hash, password), 401, '密码错误');
+  if (claim) {
+    ensure(!student.password_hash, 409, '该学号已经认领，请登录');
+    const required = studentKey(studentId);
+    if (required) {
+      const supplied = suppliedKey?.trim() || '';
+      ensure(supplied, 400, '请输入认领密钥');
+      rateLimit('claim-key:' + studentId, 8);
+      ensure(matchesClaimKey(required, supplied), 403, '认领密钥不正确');
+    }
+  } else ensure(student.password_hash && await verifyPassword(student.password_hash, password), 401, '密码错误');
   const previous = resources().find(r => r.studentId === studentId);
   if (previous) {
     const job = getDb().prepare('SELECT id FROM jobs WHERE resource_id=? ORDER BY created_at DESC LIMIT 1').get(previous.id) as { id: string };
@@ -38,12 +64,17 @@ export async function allocate(studentId: string, password: string, selected?: s
     ensure(getSettings().registrationOpen, 403, '管理员已关闭资源申请');
     const current = getDb().prepare('SELECT * FROM students WHERE id=?').get(studentId) as StudentRow;
     ensure(current.enabled && (!claim || !current.password_hash), 409, '该学号已经认领或停用');
+    if (claim) {
+      const required = studentKey(studentId);
+      ensure(!required || (!!suppliedKey?.trim() && matchesClaimKey(required, suppliedKey.trim())), 403, '认领密钥不正确');
+    }
     const profile = selectProfile(profiles(), current.profile_id, selected, getSettings());
     const allocation = budgetFor(profile, snapshot);
     ensure(allocation.capacity.count > 0, 409, '当前配置容量不足：' + allocation.capacity.limiting.join('、'));
     const id = randomUUID();
     getDb().prepare('INSERT INTO resources(id,student_id,vmid,profile_id,network_id,ip,spec,network,state,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
       .run(id, studentId, allocation.vmid, profile.id, profile.networkId, allocation.ip, JSON.stringify(profile), JSON.stringify(allocation.network), 'reserved', now());
+    reserveInitialForwards(id, studentId, profile);
     if (claim) getDb().prepare('UPDATE students SET password_hash=? WHERE id=?').run(hash, studentId);
     const job = enqueue('create', studentId, id, {}, password);
     audit(studentId, 'resource.allocate', id);

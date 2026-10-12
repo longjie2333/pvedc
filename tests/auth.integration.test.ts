@@ -97,6 +97,40 @@ describe('real HTTP authentication and authorization', () => {
       expect(JSON.stringify(name.json)).not.toContain('password_hash');
     } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
   });
+  it('enforces stored claim keys and never leaks them to students', async () => {
+    const imported = await call('admin/students/import', { csv: '学号,姓名,班级,认领密钥\nb00002001,密钥同学,测试班,K7f2m9\nb00002002,免密钥同学,测试班,\nb00002003,私密同学,测试班,Student-only-key' }, adminCookie);
+    expect(imported.response.status).toBe(200);
+    const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
+    db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...JSON.parse(previous), registrationOpen: true }));
+    try {
+      const keyed = await call('public/roster?q=b00002001');
+      expect(keyed.json.students[0]).toMatchObject({ id: 'b00002001', keyRequired: true });
+      expect((await call('public/roster?q=b00002002')).json.students[0].keyRequired).toBe(false);
+      expect(JSON.stringify(keyed.json)).not.toContain('K7f2m9');
+      expect((await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password' })).response.status).toBe(400);
+      expect((await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password', claimKey: 'wrong-key' })).response.status).toBe(403);
+      // The correct key passes the guard and only stops at the unconfigured PVE credentials.
+      const passed = await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password', claimKey: 'K7f2m9' });
+      expect(passed.response.status).toBe(409);
+      expect(passed.json.error).toContain('PVE');
+      const stored = db.prepare('SELECT sealed FROM student_keys WHERE student_id=?').get('b00002001') as { sealed: string };
+      expect(stored.sealed).not.toContain('K7f2m9');
+      const admin = await call('admin/overview', undefined, adminCookie);
+      expect(admin.json.students.find((s: { id: string }) => s.id === 'b00002001').claimKey).toBe('K7f2m9');
+      expect(admin.json.students.find((s: { id: string }) => s.id === 'b00002002').claimKey).toBe('');
+      const exported = await fetch(origin + '/api/admin/students/export', { headers: { Cookie: adminCookie } });
+      const csv = await exported.text();
+      expect(csv.split('\n')[0]).toContain('认领密钥');
+      expect(csv).toContain('K7f2m9');
+      db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-key-password'), 'b00002003');
+      const login = await call('auth/student', { studentId: 'b00002003', password: 'Student-key-password' });
+      expect(login.response.status).toBe(200);
+      const mine = await call('me/overview', undefined, login.cookie);
+      expect(mine.json.student.id).toBe('b00002003');
+      expect(JSON.stringify(mine.json)).not.toContain('claimKey');
+      expect(JSON.stringify(mine.json)).not.toContain('Student-only-key');
+    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+  });
   it('does not expose credentials through settings or store them as plaintext', async () => {
     const result = await call('admin/settings', { pveTokenSecret: 'test-sensitive-value' }, adminCookie);
     expect(result.response.status).toBe(200); expect(JSON.stringify(result.json)).not.toContain('test-sensitive-value');
@@ -119,13 +153,9 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/settings', { title: 'Still locally accessible' }, adminCookie)).response.status).toBe(200);
     expect((await call('admin/settings', { title: 'Rejected' }, adminCookie, 'https://untrusted.invalid')).response.status).toBe(403);
   });
-  it('accepts wildcard Web binding and generates usable reverse-proxy guidance', async () => {
+  it('accepts wildcard Web binding while keeping deployment generation removed', async () => {
     expect((await call('admin/settings', { webBindHost: '0.0.0.0' }, adminCookie)).response.status).toBe(200);
-    const deployment = await call('admin/deployment', undefined, adminCookie);
-    expect(deployment.json.caddy).toContain('reverse_proxy 127.0.0.1:');
-    expect(deployment.json.caddy).not.toContain('0.0.0.0:');
-    expect(deployment.json.proxy.host).toBeNull();
-    expect(deployment.json.notes).toContain('Docker');
+    expect((await call('admin/deployment', undefined, adminCookie)).response.status).toBe(405);
     expect((await call('admin/settings', { webBindHost: '224.0.0.1' }, adminCookie)).response.status).toBe(400);
   });
   it('authenticates students without granting administrator access', async () => {
