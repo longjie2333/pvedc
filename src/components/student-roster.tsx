@@ -45,7 +45,7 @@ export function StudentRoster({ students, profiles, onEdit, onMachine, onImport 
           <TableCell><strong>{student.name}</strong><small className="mono">{student.id}</small></TableCell><TableCell>{student.className || '—'}</TableCell>
           <TableCell className="mono">{student.claimKey || '—'}</TableCell>
           <TableCell>{profiles.find(profile => profile.id === student.profileId)?.name || '遵循平台规则'}</TableCell>
-          <TableCell><Status state={student.deleting ? 'deleting' : student.resource?.state || (student.claimed ? '已认领' : '未认领')}/>{student.resource && <small className="mono">{student.resource.ip}</small>}</TableCell>
+          <TableCell><Status state={student.deleting ? 'deleting' : student.resource?.state || (student.claimed ? '已认领' : '未认领')}/>{student.resource && <small className="mono">{student.resource.networks[0].ip}</small>}</TableCell>
           <TableCell><div className="flex gap-1"><Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => onEdit(student)}>编辑</Button>
             {student.resource ? <Button type="button" size="xs" variant="ghost" onClick={() => onMachine(student)}>机器</Button> : student.claimed && <Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => setResetStudent(student)}>重置认领</Button>}
             <Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => chooseBatch('delete', [student.id])}>删除</Button>
@@ -64,7 +64,7 @@ export function StudentRoster({ students, profiles, onEdit, onMachine, onImport 
         if (response) { setResult(response); setSelected([]); setBatch(undefined); }
       }}>确认{batch ? batchNames[batch.action] : ''}</Button>}>
       <div className="flex flex-col gap-4"><p>共 {batch?.ids.length || 0} 名学生，当前有 {students.filter(student => batch?.ids.includes(student.id) && student.resource).length} 台机器。</p>
-        <div className="max-h-64 overflow-y-auto"><Table><TableHeader><TableRow><TableHead>学生</TableHead><TableHead>机器 / IP</TableHead></TableRow></TableHeader><TableBody>{students.filter(student => batch?.ids.includes(student.id)).map(student => <TableRow key={student.id}><TableCell>{student.id} · {student.name}</TableCell><TableCell>{student.resource ? student.resource.vmid + ' · ' + student.resource.ip : '未分配'}</TableCell></TableRow>)}</TableBody></Table></div>
+        <div className="max-h-64 overflow-y-auto"><Table><TableHeader><TableRow><TableHead>学生</TableHead><TableHead>机器 / IP</TableHead></TableRow></TableHeader><TableBody>{students.filter(student => batch?.ids.includes(student.id)).map(student => <TableRow key={student.id}><TableCell>{student.id} · {student.name}</TableCell><TableCell>{student.resource ? student.resource.vmid + ' · ' + student.resource.networks[0].ip : '未分配'}</TableCell></TableRow>)}</TableBody></Table></div>
         {expected && <TextField label={'请输入“' + expected + '”'} value={confirmation} onChange={event => setConfirmation(event.target.value)}/>}
         <Feedback error={command.error}/>
       </div>

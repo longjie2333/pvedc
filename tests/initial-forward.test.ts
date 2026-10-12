@@ -20,7 +20,7 @@ beforeAll(() => {
   process.env.PDC_DATA_DIR = directory;
   const network = saveNetwork({ name: 'Forward network', mode: 'nat', bridge: 'dcfwd', cidr: '172.31.0.0/24', gateway: '172.31.0.1', start: '172.31.0.10', end: '172.31.0.20', dns: ['1.1.1.1'], excluded: [], vlan: null });
   getDb().prepare('UPDATE networks SET ready=1').run();
-  const profile = saveProfile({ name: 'Forward profile', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, swap: 0, disk: 4, networkId: network.id, nesting: false,
+  const profile = saveProfile({ name: 'Forward profile', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, swap: 0, disk: 4, networkIds: [network.id], nesting: false,
     initialForwards: [{ protocol: 'tcp', targetPort: 22, publicPort: 21005, note: 'SSH' }, { protocol: 'udp', targetPort: 53, note: 'DNS' }] }).id;
   saveSettings({ ...getSettings(), defaultProfileId: profile, registrationOpen: true, portStart: 21000, portEnd: 21010 });
   saveStudents([{ id: 'a001', name: 'Forward student', className: '', profileId: null, enabled: true }]);

@@ -11,7 +11,7 @@ const directory = mkdtempSync(resolve(tmpdir(), 'pvedc-seed-test-'));
 const config = {
   settings: { defaultProfileId: 'small', title: 'Initial title' },
   networks: [{ id: 'private', name: 'Private', mode: 'nat', bridge: 'dctest', cidr: '172.30.0.0/24', gateway: '172.30.0.1', start: '172.30.0.10', end: '172.30.0.20', dns: ['1.1.1.1'] }],
-  profiles: [{ id: 'small', name: 'Small', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, disk: 4, networkId: 'private' }],
+  profiles: [{ id: 'small', name: 'Small', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, disk: 4, networkIds: ['private'] }],
   students: [{ id: 'a00123456', name: 'Seed student', profileId: 'small' }],
 };
 beforeAll(() => { process.env.PDC_DATA_DIR = directory; });
@@ -21,7 +21,7 @@ afterAll(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 it('rolls back an invalid initial configuration', () => {
-  process.env.PDC_INITIAL_CONFIG = JSON.stringify({ ...config, profiles: [{ ...config.profiles[0], networkId: 'missing' }] });
+  process.env.PDC_INITIAL_CONFIG = JSON.stringify({ ...config, profiles: [{ ...config.profiles[0], networkIds: ['missing'] }] });
   expect(() => initializeSeed()).toThrow('网络配置不存在');
   expect(networks()).toHaveLength(0); expect(profiles()).toHaveLength(0);
   expect(meta('initial_config_imported')).toBeUndefined();

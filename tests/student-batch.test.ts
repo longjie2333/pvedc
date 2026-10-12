@@ -25,15 +25,15 @@ beforeAll(() => {
   process.env.PDC_DATA_DIR = directory;
   network = { ...saveNetwork({ name: 'Batch network', mode: 'nat', bridge: 'dcbatch', cidr: '172.30.0.0/24', gateway: '172.30.0.1', start: '172.30.0.10', end: '172.30.0.50', dns: ['1.1.1.1'] }), ready: true, error: null };
   getDb().prepare('UPDATE networks SET ready=1').run();
-  profile = saveProfile({ name: 'Batch profile', template: 'local:vztmpl/debian-13-standard_test_amd64.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, disk: 4, networkId: network.id, published: true });
+  profile = saveProfile({ name: 'Batch profile', template: 'local:vztmpl/debian-13-standard_test_amd64.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, disk: 4, networkIds: [network.id], published: true });
   saveSettings({ ...getSettings(), registrationOpen: true, defaultProfileId: profile.id });
 });
 beforeEach(() => {
   const db = getDb();
   for (const table of ['jobs', 'forwards', 'resources', 'students', 'sessions', 'audit']) db.prepare('DELETE FROM ' + table).run();
   saveStudents(['a001', 'a002', 'a003'].map(id => ({ id, name: '学生-' + id, className: 'Test', profileId: null, enabled: true })));
-  for (const [index, id] of ['a001', 'a003'].entries()) db.prepare('INSERT INTO resources(id,student_id,vmid,profile_id,network_id,ip,spec,network,state,created_at) VALUES(?,?,?,?,?,?,?,?,?,0)')
-    .run('resource-' + id, id, 1001 + index, profile.id, network.id, '172.30.0.' + (10 + index), JSON.stringify(profile), JSON.stringify(network), 'ready');
+  for (const [index, id] of ['a001', 'a003'].entries()) db.prepare('INSERT INTO resources(id,student_id,vmid,profile_id,networks,spec,state,created_at) VALUES(?,?,?,?,?,?,?,0)')
+    .run('resource-' + id, id, 1001 + index, profile.id, JSON.stringify([{ iface: 'eth0', networkId: network.id, name: network.name, bridge: network.bridge, cidr: network.cidr, ip: '172.30.0.' + (10 + index), gateway: network.gateway, dns: network.dns, vlan: null, mac: null }]), JSON.stringify(profile), 'ready');
   live.clear(); live.add(1001); live.add(1002);
   vi.spyOn(gost, 'syncForwards').mockResolvedValue();
   vi.spyOn(pve, 'containerExists').mockImplementation(async id => live.has(id));

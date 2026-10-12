@@ -61,7 +61,7 @@ export async function applyNetwork(id: string, jobId: string) {
 
 export async function removeNetwork(id: string, jobId: string) {
   const network = networks().find(n => n.id === id);
-  ensure(network && !resources().some(r => r.networkId === id), 409, '网络不存在或仍有资源使用');
+  ensure(network && !resources().some(r => r.networks.some(entry => entry.networkId === id)), 409, '网络不存在或仍有资源使用');
   if (network.mode === 'nat') {
     const guests = (await inventory()).configs;
     ensure(!guests.some(g => Object.entries(g.config).some(([key, value]) => /^net\d+$/.test(key) && typeof value === 'string' && value.split(',').includes('bridge=' + network.bridge))), 409, 'PVE 中仍有容器或虚拟机连接此网络');

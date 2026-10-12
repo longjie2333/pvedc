@@ -11,6 +11,7 @@ import { applyNetwork, removeNetwork } from './network';
 import { removeCatalog } from './catalog';
 import { checkpoint, succeed } from './job-state';
 import { updateGostApi } from './gost-api';
+import { configKey, netConfig, recordAssignedMacs } from './machine-network';
 import { enqueue } from './provision';
 
 async function submit(job: FullJobRow, step: string, path: string, method: string, params?: Record<string, unknown>) {
@@ -148,13 +149,13 @@ export async function runJob(job: FullJobRow) {
   }
   if (job.step === 'create') {
     ensure(job.secret, 409, '创建任务缺少密码');
-    const n = resource.network, s = resource.spec;
-    const net0 = ['name=eth0', 'bridge=' + n.bridge, 'ip=' + resource.ip + '/' + n.cidr.split('/')[1], 'gw=' + n.gateway, ...(n.vlan ? ['tag=' + n.vlan] : [])].join(',');
+    const s = resource.spec, primary = resource.networks[0];
+    const interfaces = Object.fromEntries(resource.networks.map(entry => [configKey(entry.iface), netConfig(entry)]));
     getDb().prepare('UPDATE resources SET state=? WHERE id=?').run('creating', resource.id);
     await submit(job, 'create-wait', nodePath() + '/lxc', 'POST', {
       vmid: resource.vmid, hostname: resource.studentId, ostemplate: s.template, cores: s.cores, memory: s.memory, swap: s.swap,
-      rootfs: s.storage + ':' + s.disk, net0, nameserver: n.dns.join(' '), password: unseal(job.secret),
-      unprivileged: 1, features: s.nesting ? 'nesting=1' : undefined, onboot: 1, start: 0,
+      rootfs: s.storage + ':' + s.disk, ...interfaces, ...(primary.dns.length ? { nameserver: primary.dns.join(' ') } : {}),
+      password: unseal(job.secret), unprivileged: 1, features: s.nesting ? 'nesting=1' : undefined, onboot: 1, start: 0,
       tags: ownershipTag(), description: 'PVE Distribution Center / ' + resource.id,
     }); return;
   }
@@ -163,6 +164,7 @@ export async function runJob(job: FullJobRow) {
     const config = await guestConfig(resource.vmid);
     ensure(String(config.tags || '').split(';').includes(ownershipTag()), 409, 'VMID 被其他资源占用');
     if (config.lock) return;
+    recordAssignedMacs(resource, config);
     checkpoint(job, 'start'); return;
   }
   if (job.step === 'start') { await submit(job, 'start-wait', path + '/status/start', 'POST'); return; }

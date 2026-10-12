@@ -24,6 +24,14 @@ export const networkSchema = z.object({
 });
 export type NetworkSpec = z.infer<typeof networkSchema>;
 
+export const machineNetworkSchema = z.object({
+  iface: z.string().regex(/^eth\d{1,2}$/), networkId: z.string().nullable().default(null), name: text,
+  bridge: networkSchema.shape.bridge, cidr: z.string().trim(), ip: z.ipv4(), gateway: z.ipv4().nullable().default(null),
+  dns: z.array(z.ipv4()).max(3).default([]), vlan: z.number().int().min(1).max(4094).nullable().default(null),
+  mac: z.string().regex(/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/, 'MAC 地址格式无效').nullable().default(null),
+});
+export type MachineNetwork = z.infer<typeof machineNetworkSchema>;
+
 export const profileSchema = z.object({
   name: text, published: z.boolean().default(false), enabled: z.boolean().default(true),
   template: z.string().regex(/^[a-zA-Z0-9_-]+:vztmpl\/[a-zA-Z0-9_.-]+$/),
@@ -32,7 +40,9 @@ export const profileSchema = z.object({
   memory: z.coerce.number().int().min(256).max(1048576),
   swap: z.coerce.number().int().min(0).max(1048576).default(0),
   disk: z.coerce.number().int().min(4).max(65536),
-  networkId: text, nesting: z.boolean().default(false),
+  networkIds: z.array(text).min(1, '至少选择一个网络配置').max(8, '最多支持八块网卡')
+    .refine(ids => new Set(ids).size === ids.length, '网络配置不能重复'),
+  nesting: z.boolean().default(false),
   initialForwards: z.array(z.object({ protocol: z.enum(['tcp', 'udp']), targetPort: port, publicPort: port.optional(), note: z.string().trim().max(100).default('') })).max(20).default([]),
 });
 export type ProfileSpec = z.infer<typeof profileSchema>;
@@ -90,9 +100,10 @@ export interface Profile extends ProfileSpec { id: string }
 export interface ProfileSummary { id: string; name: string; cores: number; memory: number; disk: number; distro: 'ubuntu' | 'debian' }
 export interface Network extends NetworkSpec { id: string; ready: boolean; error: string | null }
 export interface Resource {
-  id: string; studentId: string; vmid: number; profileId: string; networkId: string;
-  ip: string; spec: ProfileSpec; network: NetworkSpec; state: ResourceState; createdAt: number;
+  id: string; studentId: string; vmid: number; profileId: string;
+  networks: MachineNetwork[]; spec: ProfileSpec; state: ResourceState; createdAt: number;
 }
+export const primaryNetwork = (resource: Pick<Resource, 'networks'>) => resource.networks[0];
 export interface Task {
   id: string; type: string; studentId: string | null; resourceId: string | null;
   state: TaskState; step: string; error: string | null; createdAt: number; updatedAt: number;

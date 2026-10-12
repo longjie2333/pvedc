@@ -26,7 +26,7 @@ beforeAll(() => {
   process.env.PDC_DATA_DIR = directory;
   const network = saveNetwork({ name: 'Key pool', mode: 'nat', bridge: 'dckey', cidr: '172.31.0.0/24', gateway: '172.31.0.1', start: '172.31.0.10', end: '172.31.0.100', dns: ['1.1.1.1'], excluded: [], vlan: null });
   getDb().prepare('UPDATE networks SET ready=1').run();
-  const profileId = saveProfile({ name: 'Key test', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, swap: 0, disk: 4, networkId: network.id, nesting: false }).id;
+  const profileId = saveProfile({ name: 'Key test', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, swap: 0, disk: 4, networkIds: [network.id], nesting: false }).id;
   saveSettings({ ...getSettings(), defaultProfileId: profileId, registrationOpen: true });
   saveStudents(['k0001', 'k0002', 'k0003', 'k0004'].map(student));
 });

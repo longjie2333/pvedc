@@ -71,9 +71,14 @@ export async function allocate(studentId: string, password: string, selected?: s
     const profile = selectProfile(profiles(), current.profile_id, selected, getSettings());
     const allocation = budgetFor(profile, snapshot);
     ensure(allocation.capacity.count > 0, 409, '当前配置容量不足：' + allocation.capacity.limiting.join('、'));
+    const interfaces = allocation.networks.map((entry, index) => ({
+      iface: 'eth' + index, networkId: entry.network.id, name: entry.network.name, bridge: entry.network.bridge,
+      cidr: entry.network.cidr, ip: entry.ip, gateway: index === 0 ? entry.network.gateway : null,
+      dns: index === 0 ? entry.network.dns : [], vlan: entry.network.vlan, mac: null,
+    }));
     const id = randomUUID();
-    getDb().prepare('INSERT INTO resources(id,student_id,vmid,profile_id,network_id,ip,spec,network,state,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-      .run(id, studentId, allocation.vmid, profile.id, profile.networkId, allocation.ip, JSON.stringify(profile), JSON.stringify(allocation.network), 'reserved', now());
+    getDb().prepare('INSERT INTO resources(id,student_id,vmid,profile_id,networks,spec,state,created_at) VALUES(?,?,?,?,?,?,?,?)')
+      .run(id, studentId, allocation.vmid, profile.id, JSON.stringify(interfaces), JSON.stringify(profile), 'reserved', now());
     reserveInitialForwards(id, studentId, profile);
     if (claim) getDb().prepare('UPDATE students SET password_hash=? WHERE id=?').run(hash, studentId);
     const job = enqueue('create', studentId, id, {}, password);
