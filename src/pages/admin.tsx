@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Choice, Empty, Feedback, Loading, Modal, PageTitle, Panel, Stat, Status } from '@/components/common';
 import { ForwardPanel } from '@/components/forward-panel';
 import { MachineDetail } from '@/components/resource';
+import { ResourceAdjust } from '@/components/resource-adjust';
 import { CatalogEditor } from './editors';
 import { SettingsEditor } from './settings';
 import { StudentRoster } from '@/components/student-roster';
@@ -26,7 +27,7 @@ const titles: Record<string, [string, string, string]> = { overview: ['RESOURCE 
 export function AdminPage() {
   const page = useParams().page || 'overview', command = useCommand();
   const [csv, setCsv] = useState(''), [fileError, setFileError] = useState('');
-  const [editor, setEditor] = useState<{ kind: 'students' | 'profiles' | 'networks'; item?: AdminStudent | Profile | Network }>(), [importing, setImporting] = useState(false), [machine, setMachine] = useState<Resource>();
+  const [editor, setEditor] = useState<{ kind: 'students' | 'profiles' | 'networks'; item?: AdminStudent | Profile | Network }>(), [importing, setImporting] = useState(false), [machine, setMachine] = useState<Resource>(), [adjusting, setAdjusting] = useState<Resource>();
   const [confirmation, setConfirmation] = useState<{title:string; description:string; path:string; method?:string}>();
   const overview = useQuery({ queryKey: ['admin-overview'], queryFn: () => request<Overview>('admin/overview'), refetchInterval: 5000 });
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => request<SafeSettings>('admin/settings') });
@@ -47,7 +48,8 @@ export function AdminPage() {
   <Modal destructive open={!!confirmation} onClose={() => setConfirmation(undefined)} title={confirmation?.title || "确认操作"} description={confirmation?.description || ""} footer={<Button variant="destructive" loading={command.pending} onClick={async () => { if (confirmation && await command.run(confirmation.path, {}, confirmation.method || "POST")) setConfirmation(undefined); }}>确认</Button>}><Feedback error={command.error}/></Modal>
   {editor && <CatalogEditor key={editor.kind + (editor.item?.id || 'new')} {...editor} profiles={d.profiles} networks={d.networks} onClose={() => setEditor(undefined)}/>}
   <Modal open={importing} onClose={() => setImporting(false)} title="批量导入学生" description="支持粘贴 CSV 或从表格复制的内容。相同学号更新姓名、班级和指定配置，保留认领状态；包含「认领密钥」列时同步更新密钥，留空则清除，缺列保持原值。" footer={<Button form="import-form" type="submit" loading={command.pending}>导入</Button>}><Form id="import-form" onSubmit={async e => { e.preventDefault(); if (await command.run('admin/students/import', { csv: new FormData(e.currentTarget).get('csv') })) setImporting(false); }}><Feedback error={fileError || command.error}/><label className="flex flex-col gap-2 mb-4 text-sm">选择 UTF-8 CSV 文件<Input nativeInput type="file" accept=".csv,.tsv,text/csv" onChange={async e => { const file=e.target.files?.[0]; if (!file) return; if(file.size>1500000) { setFileError("文件过大，请分批导入"); return; } setFileError(""); setCsv(await file.text()); }}/></label><Textarea name="csv" value={csv} onChange={e => setCsv(e.target.value)} required rows={10} aria-label="学生名单 CSV" placeholder={'学号,姓名,班级,认领密钥\n20260001,张同学,软件工程一班,K7f2m9'}/></Form></Modal>
-  <Modal open={!!machine} onClose={() => setMachine(undefined)} title="学生计算资源" description={machine?.studentId || ''}>{machine && <><MachineDetail admin resource={machine}/><ForwardPanel admin resource={machine} rules={d.forwards.filter(f => f.resourceId === machine.id)} publicHost={settings.data?.publicHost || ""}/></>}</Modal>
+  <Modal open={!!machine} onClose={() => setMachine(undefined)} title="学生计算资源" description={machine?.studentId || ''}>{machine && <><MachineDetail admin resource={machine} onAdjust={() => { setAdjusting(machine); setMachine(undefined); }}/><ForwardPanel admin resource={machine} rules={d.forwards.filter(f => f.resourceId === machine.id)} publicHost={settings.data?.publicHost || ""}/></>}</Modal>
+  {adjusting && <ResourceAdjust key={adjusting.id + adjusting.state} resource={adjusting} networks={d.networks} onClose={() => setAdjusting(undefined)}/>}
   </>;
 }
 function Templates() {

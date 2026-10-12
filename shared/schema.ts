@@ -32,6 +32,29 @@ export const machineNetworkSchema = z.object({
 });
 export type MachineNetwork = z.infer<typeof machineNetworkSchema>;
 
+export const adjustNetworkSchema = z.object({
+  iface: z.string().regex(/^eth\d{1,2}$/),
+  networkId: z.string().nullable().default(null),
+  bridge: z.string().trim().max(15).default(''), cidr: z.string().trim().default(''), ip: z.string().trim().default(''),
+  gateway: z.string().trim().default(''), dns: z.array(z.ipv4()).max(3).default([]),
+  vlan: z.number().int().min(1).max(4094).nullable().default(null),
+  mac: z.string().trim().max(17).nullable().default(null), macMode: z.enum(['keep', 'auto', 'set']).default('keep'),
+});
+export type AdjustNetwork = z.infer<typeof adjustNetworkSchema>;
+export const machineAdjustSchema = z.object({
+  spec: z.object({
+    cores: z.coerce.number().int().min(1).max(128),
+    memory: z.coerce.number().int().min(256).max(1048576),
+    swap: z.coerce.number().int().min(0).max(1048576),
+    disk: z.coerce.number().int().min(4).max(65536),
+  }),
+  networks: z.array(adjustNetworkSchema).min(1).max(8)
+    .refine(list => new Set(list.map(entry => entry.iface)).size === list.length, '网卡名称重复')
+    .refine(list => list.every((entry, index) => index === 0 || !entry.gateway), '只有第一块网卡可以设置默认网关'),
+  confirmShutdown: z.boolean().default(false),
+});
+export type MachineAdjust = z.infer<typeof machineAdjustSchema>;
+
 export const profileSchema = z.object({
   name: text, published: z.boolean().default(false), enabled: z.boolean().default(true),
   template: z.string().regex(/^[a-zA-Z0-9_-]+:vztmpl\/[a-zA-Z0-9_.-]+$/),

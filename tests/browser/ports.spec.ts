@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const resource = { id: 'resource-test', studentId: 'a00123', vmid: 1001, profileId: 'profile', networkId: 'network', ip: '172.20.0.10', state: 'ready',
-  spec: { name: 'Test profile', distro: 'debian', cores: 2, memory: 1024, disk: 8 } };
+const resource = { id: 'resource-test', studentId: 'a00123', vmid: 1001, profileId: 'profile', state: 'ready', createdAt: 1,
+  networks: [{ iface: 'eth0', networkId: 'network', name: '测试网络', bridge: 'dc0', cidr: '172.20.0.0/24', ip: '172.20.0.10', gateway: '172.20.0.1', dns: ['1.1.1.1'], vlan: null, mac: null }],
+  spec: { name: 'Test profile', distro: 'debian', cores: 2, memory: 1024, disk: 8, networkIds: ['network'] } };
 const ports = [
   { protocol: 'tcp', address: '0.0.0.0', port: 8080, processes: [{ name: 'node', pid: 42 }] },
   { protocol: 'udp', address: '127.0.0.53', port: 53, processes: [{ name: 'systemd-resolve', pid: 10 }] },

@@ -13,8 +13,12 @@ export async function retryTask(user: Actor, id: string) {
   ensure(['failed', 'attention'].includes(job.state), 409, '任务当前不能重试');
   let step = job.step, upid = job.upid;
   const resource = resources().find(r => r.id === job.resource_id);
-  if (!upid && resource && ['create-wait', 'delete-wait', 'start-wait', 'stop-wait', 'power-wait'].includes(step)) {
-    const types: Record<string, string> = { 'create-wait': 'vzcreate', 'delete-wait': 'vzdestroy', 'start-wait': 'vzstart', 'stop-wait': 'vzstop', 'power-wait': { start: 'vzstart', shutdown: 'vzshutdown', reboot: 'vzreboot' }[job.type] || '' };
+  if (!upid && resource && ['create-wait', 'delete-wait', 'start-wait', 'stop-wait', 'power-wait', 'adjust-stop-wait', 'adjust-disk-wait', 'adjust-start-wait'].includes(step)) {
+    const types: Record<string, string> = {
+      'create-wait': 'vzcreate', 'delete-wait': 'vzdestroy', 'start-wait': 'vzstart', 'stop-wait': 'vzstop',
+      'adjust-stop-wait': 'vzshutdown', 'adjust-start-wait': 'vzstart', 'adjust-disk-wait': 'resize',
+      'power-wait': { start: 'vzstart', shutdown: 'vzshutdown', reboot: 'vzreboot' }[job.type] || '',
+    };
     const recent = await pve<{ upid: string; type: string; starttime: number }[]>(nodePath() + '/tasks', 'GET', { vmid: resource.vmid, source: 'all', limit: 50 });
     upid = recent.filter(task => task.type === types[step] && task.starttime >= job.created_at).sort((a, b) => b.starttime - a.starttime)[0]?.upid || null;
     if (!upid) {
@@ -30,7 +34,7 @@ export async function retryTask(user: Actor, id: string) {
   if (upid) {
     const status = await taskStatus(upid);
     if (status.status === 'stopped' && !status.success) {
-      const repeat: Record<string, string> = { 'download-wait': 'pending', 'power-wait': 'pending', 'start-wait': 'start', 'stop-wait': 'stop-delete', 'delete-wait': 'delete', 'network-wait': 'pending' };
+      const repeat: Record<string, string> = { 'download-wait': 'pending', 'power-wait': 'pending', 'start-wait': 'start', 'stop-wait': 'stop-delete', 'delete-wait': 'delete', 'network-wait': 'pending', 'adjust-stop-wait': 'adjust-stop', 'adjust-start-wait': 'adjust-start', 'adjust-disk-wait': 'adjust-apply' };
       if (step === 'create-wait' && resource) {
         if (await containerExists(resource.vmid)) {
           const config = await guestConfig(resource.vmid);

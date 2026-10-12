@@ -69,6 +69,23 @@ export function occupiedIps(snapshot: Inventory, managed = resources()) {
   }
   return occupied;
 }
+// Host resources already committed to guests, optionally excluding one machine that is being reconfigured.
+export function usage(snapshot: Inventory, exclude?: { resourceId: string; vmid: number }) {
+  let cpu = 0, memory = 0;
+  for (const guest of snapshot.configs) {
+    if (exclude && guest.vmid === exclude.vmid) continue;
+    cpu += Number(guest.config.cores || (guest.type === 'lxc' ? snapshot.node.cpuinfo.cpus : 1)) * Number(guest.config.sockets || 1);
+    memory += Number(guest.config.memory || 512);
+  }
+  const pveIds = new Set(snapshot.entries.filter(entry => entry.vmid).map(entry => entry.vmid));
+  for (const resource of resources()) {
+    if (exclude && resource.id === exclude.resourceId) continue;
+    if (exclude && resource.vmid === exclude.vmid) continue;
+    if (pveIds.has(resource.vmid)) continue;
+    cpu += resource.spec.cores; memory += resource.spec.memory;
+  }
+  return { cpu, memory };
+}
 export async function allCapacities() {
   const snapshot = await inventory();
   return profiles().map(profile => {
