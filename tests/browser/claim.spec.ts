@@ -13,7 +13,7 @@ test('claim combobox searches remotely and only submits the selected roster iden
     return route.fulfill({ json: { open: true, selfSelection: false, profiles: [], defaultProfileId: 'default',
       students: students.filter(student => (student.id + student.name).includes(query)) } });
   });
-  await page.route('**/api/public/claim', route => route.fulfill({ status: 409, json: { error: '测试资源容量不足' } }));
+  await page.route('**/api/public/claim', route => route.fulfill({ status: 409, json: { error: '网络 校内私网 已无可用地址' } }));
   await page.goto('/');
   await page.getByRole('button', { name: '首次使用？认领资源' }).click();
   const picker = page.getByRole('combobox', { name: '我的学号' });
@@ -40,7 +40,7 @@ test('claim combobox searches remotely and only submits the selected roster iden
   expect(body).not.toHaveProperty('claimKey');
   expect(searches).toContain('张');
   expect(searches).toContain('a00124');
-  await expect(page.getByRole('alert')).toContainText('测试资源容量不足');
+  await expect(page.getByRole('alert')).toContainText('网络 校内私网 已无可用地址');
   await picker.fill('a00125');
   await expect(page.getByRole('option', { name: /a00125/ })).toBeVisible();
   await picker.press('ArrowDown');
@@ -56,5 +56,5 @@ test('claim combobox searches remotely and only submits the selected roster iden
   const keyedBody = (await keyed).postDataJSON();
   expect(keyedBody.studentId).toBe('a00125');
   expect(keyedBody.claimKey).toBe('K7f2m9');
-  await expect(page.getByRole('alert')).toContainText('测试资源容量不足');
+  await expect(page.getByRole('alert')).toContainText('网络 校内私网 已无可用地址');
 });

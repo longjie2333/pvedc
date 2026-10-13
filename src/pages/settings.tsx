@@ -12,11 +12,11 @@ import { Form } from '@/components/ui/form';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
 
-type SettingGroup = { title: string; fields: [string, string, string?][] };
+type SettingGroup = { title: string; fields: [string, string, string?][]; detail?: string };
 const platformGroups: SettingGroup[] = [
   { title: '站点与分配策略', fields: [['title', '平台名称'], ['registrationOpen', '开放学生认领与创建', 'boolean'], ['selfSelection', '允许学生自选配置', 'boolean']] },
   { title: 'PVE 连接', fields: [['pveUrl', 'PVE API 地址'], ['pveNode', '节点名称'], ['pveTokenId', 'API Token ID'], ['pveTokenSecret', 'API Token 密钥', 'password'], ['pveCa', 'PVE CA 证书 PEM', 'textarea']] },
-  { title: '容量与编号', fields: [['cpuOvercommit', 'CPU 超分比例', 'number'], ['reserveCpu', '宿主保留 CPU', 'number'], ['reserveMemory', '宿主保留内存 MiB', 'number'], ['reserveDisk', '存储保留空间 GiB', 'number'], ['vmidStart', 'VMID 起始值', 'number'], ['vmidEnd', 'VMID 结束值', 'number']] },
+  { title: '容量估算与编号', detail: '保留值与超分比例用于生成「预计还可分配」估算，不限制创建数量；编号范围仍决定可用 VMID。', fields: [['cpuOvercommit', 'CPU 超分比例', 'number'], ['reserveCpu', '宿主保留 CPU', 'number'], ['reserveMemory', '宿主保留内存 MiB', 'number'], ['reserveDisk', '存储保留空间 GiB', 'number'], ['vmidStart', 'VMID 起始值', 'number'], ['vmidEnd', 'VMID 结束值', 'number']] },
 ];
 const forwardingGroups: SettingGroup[] = [
   { title: '公网 Relay + TLS', fields: [['relayHost', 'Relay 主机'], ['relayPort', 'Relay 端口', 'number'], ['relayUser', 'Relay 用户名'], ['relayPassword', 'Relay 密码', 'password'], ['relayServerName', 'TLS 服务名'], ['relayCa', '自定义 CA 证书 PEM（可选）', 'textarea'], ['publicHost', '学生使用的公网主机名']] },
@@ -43,7 +43,7 @@ function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; p
     if (saved) setValues({ ...saved });
   }} className="flex flex-col gap-5">
     <Feedback error={command.error}/>
-    {groups.map((group, index) => <Panel key={group.title} title={group.title}>
+    {groups.map((group, index) => <Panel key={group.title} title={group.title} detail={group.detail}>
       <div className="form-grid p-6">
         {section === 'platform' && index === 0 && <Choice label="默认资源配置（必须）" value={String(values.defaultProfileId || '')} onChange={value => setValues({ ...values, defaultProfileId: value || null })} items={[{ value: '', label: '请选择默认配置' }, ...profiles.filter(profile => profile.enabled && profile.published).map(profile => ({ value: profile.id, label: profile.name }))]}/>}
         {group.fields.filter(([, , type]) => type !== 'boolean').map(([key, label, type]) => type === 'textarea'

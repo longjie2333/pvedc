@@ -70,7 +70,10 @@ export async function allocate(studentId: string, password: string, selected?: s
     }
     const profile = selectProfile(profiles(), current.profile_id, selected, getSettings());
     const allocation = budgetFor(profile, snapshot);
-    ensure(allocation.capacity.count > 0, 409, '当前配置容量不足：' + allocation.capacity.limiting.join('、'));
+    // Host CPU, memory and disk are dynamic resources, so only unique resources can block a reservation.
+    ensure(allocation.vmid <= getSettings().vmidEnd, 409, '可用 VMID 已用尽，请调整平台设置中的 VMID 范围');
+    const exhausted = allocation.networks.find(entry => !entry.ip);
+    ensure(!exhausted, 409, `网络 ${exhausted?.network.name} 已无可用地址`);
     const interfaces = allocation.networks.map((entry, index) => ({
       iface: 'eth' + index, networkId: entry.network.id, name: entry.network.name, bridge: entry.network.bridge,
       cidr: entry.network.cidr, ip: entry.ip, gateway: index === 0 ? entry.network.gateway : null,
