@@ -4,7 +4,7 @@ import { machineAdjustSchema } from '../../shared/schema';
 import { audit, getDb } from './db';
 import { ensure } from './errors';
 import { availableIps, ipNumber } from './allocation';
-import { inventory, usage } from './inventory';
+import { inventory } from './inventory';
 import { parseNetConfig } from './machine-network';
 import { bridgeOptions } from './pve-options';
 import { containerPath, containerExists, pve, type ContainerStatus } from './pve';
@@ -90,9 +90,6 @@ export async function resolveAdjust(resource: Resource, input: MachineAdjust): P
   const storage = snapshot.entries.find(entry => entry.type === 'storage' && entry.storage === resource.spec.storage && entry.node === settings.pveNode);
   ensure(storage?.status === 'available', 409, '系统盘存储不可用');
   ensure(input.spec.disk >= resource.spec.disk, 409, '系统盘只能扩容，不能缩小');
-  const used = usage(snapshot, { resourceId: resource.id, vmid: resource.vmid });
-  ensure(input.spec.cores <= (snapshot.node.cpuinfo.cpus - settings.reserveCpu) * settings.cpuOvercommit - used.cpu, 409, 'CPU 超出宿主保留后的可用额度');
-  ensure(input.spec.memory <= snapshot.node.memory.total / 1048576 - settings.reserveMemory - used.memory, 409, '内存超出宿主保留后的可用额度');
   const freeDisk = ((storage.maxdisk ?? 0) - (storage.disk ?? 0)) / 1073741824;
   ensure(input.spec.disk - resource.spec.disk <= freeDisk - settings.reserveDisk, 409, '系统盘扩容超出存储可用空间');
   const spec = { ...resource.spec, ...input.spec };

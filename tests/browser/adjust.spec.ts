@@ -75,7 +75,7 @@ test('network changes on a running machine require the shutdown confirmation', a
 test('a stopped machine skips the shutdown confirmation but still blocks invalid custom input', async ({ page }) => {
   const submissions = await mockWorkspace(page, 'stopped');
   await openAdjust(page);
-  const method = page.getByRole('combobox', { name: '配置方式', exact: true }).first();
+  const method = page.getByRole('combobox', { name: '配置模式', exact: true }).first();
   await method.click();
   await page.getByRole('option', { name: '自定义配置' }).click();
   await expect(page.getByText(/请选择可用网桥/)).toBeVisible();

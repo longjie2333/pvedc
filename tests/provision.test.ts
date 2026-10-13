@@ -40,7 +40,8 @@ afterAll(() => {
 it('atomically reserves the last address during concurrent claims', async () => {
   const results = await Promise.allSettled(['00001001', '00001002'].map(id => allocate(id, 'Test-student-password', undefined, true)));
   expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
-  expect(results.filter(r => r.status === 'rejected')).toHaveLength(1);
+  const rejection = results.find(result => result.status === 'rejected') as PromiseRejectedResult;
+  expect(rejection.reason.message).toContain('网络 One address 已无可用地址');
   expect(resources()).toHaveLength(1);
   expect(resources()[0].networks[0].ip).toBe('172.30.0.10');
   const claimed = getDb().prepare('SELECT count(*) count FROM students WHERE password_hash IS NOT NULL').get() as { count: number };
