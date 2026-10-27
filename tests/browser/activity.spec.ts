@@ -21,7 +21,7 @@ test('activity tabs fetch only the active page and preserve independent query st
     return route.fulfill({ json: { items, total, page: current, pageSize: size } });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(calls).toEqual([]);
   await page.getByRole('link', { name: '任务与审计', exact: true }).click();
   const tasks = page.getByRole('tabpanel', { name: '任务记录', exact: true });

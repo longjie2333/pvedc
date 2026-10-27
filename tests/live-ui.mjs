@@ -34,8 +34,8 @@ try {
   await admin.goto('http://127.0.0.1:3112');
   await admin.getByRole('button', { name: '管理员入口' }).click();
   await admin.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: credentials.adminSecret }));
-  await expect(admin.getByRole('heading', { name: '宿主机总体状况' })).toBeVisible();
-  await expect(admin.getByText('宿主网络 · KiB/s', { exact: true })).toBeVisible();
+  await expect(admin.getByRole('heading', { name: /^宿主机 / })).toBeVisible();
+  await expect(admin.getByRole('heading', { name: '容量', exact: true })).toBeVisible();
   await admin.screenshot({ path: 'test-results/admin-live.png', fullPage: true });
   await admin.getByRole('button', { name: '查看', exact: true }).first().click();
   await expect(admin.getByRole('heading', { name: '系统监听端口' })).toBeVisible();

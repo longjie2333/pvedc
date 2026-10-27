@@ -21,7 +21,7 @@ test('concurrent protected requests share one refresh and retry once', async ({ 
     return route.fulfill({ json });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(refreshes).toBe(1);
   expect(attempts.get('overview')).toBe(2);
   expect(attempts.get('settings')).toBe(2);
@@ -58,9 +58,9 @@ test('refreshes proactively before the access deadline', async ({ page }) => {
   await page.route('**/api/admin/**', route => route.fulfill({ json: route.request().url().endsWith('/overview')
     ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] } : {} }));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(refreshes).toBe(0);
   await page.clock.fastForward(10_000);
   await expect.poll(() => refreshes).toBe(1);
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
 });

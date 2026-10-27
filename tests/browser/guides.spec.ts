@@ -5,7 +5,7 @@ test('administrator can create and publish a Milkdown guide', async ({ page }) =
   await page.goto('/');
   await page.getByRole('button', { name: '管理员入口' }).click();
   await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '指导书', exact: true }).click();
   await expect(page.locator('h1').filter({ hasText: /^指导书$/ })).toBeVisible();
   await page.getByRole('button', { name: '新建指导书' }).click();

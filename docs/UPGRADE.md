@@ -57,6 +57,18 @@
 
 ## 后续实施注意
 
+### 2026-10-28 界面重设计：外壳与管理总览（本地开发与测试）
+
+- 目标：按用户确认的重设计稿（`design/redesign/`，未提交的静态稿）逐页落地。本轮只做外壳和管理总览；学生工作台、登录页及其余管理页仍沿用旧布局，后续逐页替换。
+- 外壳：新增 `src/components/app-shell.tsx`。管理端改用 coss inset Sidebar（三组导航、任务待处理数徽标、底部账户菜单、顶部切换按钮与面包屑），移动端由 Sidebar 自带的 Sheet 打开并在点击后收起；学生端改为顶部导航（工作台 / 任务记录）与学号账户菜单，不再有侧栏。两端均去掉头像、侧栏标语和页脚口号，品牌名使用平台设置中的标题。
+- 主题：品牌绿 `oklch(0.46 0.085 160)` 仅作 primary，背景与卡片回到 coss 中性色；新增 sidebar 与 chart 变量。删除旧 `.sidebar/.topbar/.main-shell/.page/.setup-banner/.state*` 样式。共享 `Status` 改用 Badge 语义变体（success/info/warning/error），全站状态徽标随之统一。
+- 总览：新增 `src/components/admin-overview.tsx` 替代并删除 `host-overview.tsx`。KPI 合并为一张卡（名单学生、已认领 / 名单、已分配实例、待处理任务）；宿主机卡用 Tabs 切换 CPU/内存/网络一小时曲线；容量卡用 Meter 显示 CPU、内存、系统盘、各存储、交换，超过 80% 标为警告色，页脚显示运行时间和采样时间；实例表支持按学号、姓名、VMID、IP 本地搜索，保留「查看」打开实例详情。未开放申请时以 coss Alert 提示配置平台。
+- 与设计稿的差异：稿中「运行实例」与实例 CPU 列依赖逐台运行状态，但总览接口只有分配状态，为避免误导改为「已分配实例」并去掉 CPU 列；稿中的全局搜索、批量创建、刷新与筛选按钮没有对应功能，未实现。
+- 新增 coss 组件：sidebar、sheet（sidebar 移动端依赖）、tooltip、card、meter、menu、breadcrumb、alert 及 `src/hooks/use-media-query.ts`，取自 `@coss` registry，仅改写导入路径。
+- 测试：浏览器用例的页面标题从「计算资源总览」改为「总览」，宿主机断言改为卡片标题、容量 Meter 与网络 Tab；移动端侧栏断言改为导航链接隐藏、`切换导航` 按钮打开；学生端无侧栏，删除对应断言并保留横向溢出检查；`tests/live-ui.mjs` 同步。
+- 本地验证：`pnpm typecheck`、`pnpm build` 通过；`pnpm test` 通过（21 个文件 101 项 Vitest + 6 项 Python helper）；Playwright 14 项中 12 项通过，`guides.spec.ts` 两条仍为上一轮记录的既有失败（编辑器标题字段与旧 `.machine-banner + .panel` 选择器），本轮未修改相关组件。已查看桌面总览与 390px 设置页、转发弹窗截图，无横向溢出。
+- 未验证：未部署、未连接隔离或正式环境、未运行 `tests/live-ui.mjs`；真实宿主多存储与长时间采样下的容量卡和曲线展示需部署验收时确认。
+
 ### 2026-10-13 移除宿主容量对创建与调整的数量限制（本地开发与测试）
 
 - 目标：LXC 的 CPU、内存、磁盘为动态资源，按声明值求和的五维估算在 host 紧张时误伤正常创建；「预计还可分配」保留为大致参考，不再作为创建门槛。经用户确认，创建/认领与管理员调整一并移除数量限制；IP 与 VMID 是唯一性资源，用尽时仍阻止。

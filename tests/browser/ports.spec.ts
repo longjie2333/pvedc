@@ -51,7 +51,6 @@ test('student ports are fetched only in the forwarding dialog and object selecti
   await expect(picker).toContainText('udp-service');
   await page.screenshot({ path: 'test-results/student-forward-dialog.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/student-forward-mobile.png' });
   await page.getByRole('button', { name: '创建转发', exact: true }).click();

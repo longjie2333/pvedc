@@ -7,11 +7,11 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.goto('/');
   await page.getByRole('button', { name: '管理员入口' }).click();
   await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '宿主机总体状况' })).toBeVisible();
-  await expect(page.getByText(/Browser Test CPU/)).toBeVisible();
-  await expect(page.getByText('12.0%', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '宿主网络 · KiB/s' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '宿主机 r550', exact: true })).toBeVisible();
+  await expect(page.getByText('12.0% · 24 核', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: '网络', exact: true }).click();
+  await expect(page.getByText('发送', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/admin-overview.png', fullPage: true });
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '添加学生' }).click();
@@ -125,7 +125,7 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await expect(page.getByText('当前生效地址：http://127.0.0.1:18080 · 用户：pvedc')).toBeVisible();
   await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('link', { name: '学生名单', exact: true })).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-settings.png', fullPage: true });
   const rotation = page.waitForResponse(response => response.url().endsWith('/api/auth/rotate-begin'));
@@ -137,7 +137,7 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await newCode.fill(generateSync({ secret: rotated.secret }));
   await expect(page.getByAltText('新的 TOTP 二维码')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: '当前验证码', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '打开导航', exact: true }).click();
+  await page.getByRole('button', { name: '切换导航', exact: true }).click();
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '全选', exact: true }).click();
   await expect(page.getByText('已选择 2 人', { exact: true })).toBeVisible();

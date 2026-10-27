@@ -24,9 +24,9 @@ test('first visit automatically creates and displays the TOTP key and QR code', 
   await code.fill(valid.slice(0, 5));
   expect(requests).toBe(0);
   await code.fill(valid);
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(requests).toBe(1);
   await page.reload();
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   await expect(page.getByAltText('管理员 TOTP 绑定二维码')).toHaveCount(0);
 });
