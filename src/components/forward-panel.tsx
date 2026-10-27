@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ipaddr from 'ipaddr.js';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Copy, Plus, RefreshCw } from 'lucide-react';
 import type { Forward, ListeningPort, Resource } from '../../shared/schema';
 import type { Sample } from '../../shared/metrics';
 import { request, useCommand } from '@/lib/api';
-import { Choice, Empty, Feedback, Modal, Panel, Status, TextField } from './common';
+import { copyText } from '@/lib/feedback';
+import { Choice, Empty, Feedback, Modal, Status, TextField } from './common';
+import { Badge } from './ui/badge';
+import { Card, CardAction, CardHeader, CardPanel, CardTitle } from './ui/card';
 import { Field, FieldLabel } from './ui/field';
 import { Form } from './ui/form';
 import { Button } from './ui/button';
@@ -31,15 +34,16 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
   }), manual], [ports.data?.data]);
   const choice = options.find(option => option.value === selected);
   const custom = admin || selected === 'manual';
-  return <Panel title="公网端口转发" detail="将容器中的服务映射到公网端口" action={resource && <Button type="button" disabled={resource.state !== 'ready'} onClick={() => { setSelected(''); setProtocol('tcp'); setTargetPort(''); setOpen(true); }}><Plus/>添加转发</Button>}>
-    {!open && <Feedback error={command.error}/>}
-    {rules.length ? <Table><TableHeader><TableRow><TableHead>公网入口</TableHead><TableHead>容器端口</TableHead><TableHead>状态</TableHead><TableHead>备注</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>
-      {rules.map(rule => <TableRow key={rule.id}><TableCell><div className="mono">{publicHost || '未设置公网地址'}:{rule.publicPort}</div><small>{rule.protocol.toUpperCase()}</small></TableCell>
-        <TableCell className="mono">{rule.targetPort}</TableCell><TableCell><Status state={rule.state}/>{rule.error && <div className="text-xs text-destructive-foreground">{rule.error}</div>}</TableCell><TableCell>{rule.note || '—'}</TableCell><TableCell><div className="flex gap-1">
+  return <Card>
+    <CardHeader className="pb-4"><CardTitle render={<h2/>}>公网转发</CardTitle>{resource && <CardAction><Button type="button" size="sm" disabled={resource.state !== 'ready'} onClick={() => { setSelected(''); setProtocol('tcp'); setTargetPort(''); setOpen(true); }}><Plus/>添加转发</Button></CardAction>}</CardHeader>
+    {!open && command.error && <div className="px-6"><Feedback error={command.error}/></div>}
+    {rules.length ? <Table><TableHeader><TableRow><TableHead className="ps-6">公网入口</TableHead><TableHead>容器端口</TableHead><TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="pe-6"/></TableRow></TableHeader><TableBody>
+      {rules.map(rule => <TableRow key={rule.id}><TableCell className="ps-6"><span className="inline-flex items-center gap-1.5"><Badge variant="outline" size="sm">{rule.protocol.toUpperCase()}</Badge><span className="font-mono text-xs">{publicHost || '未设置公网地址'}:{rule.publicPort}</span>{publicHost && <Button type="button" variant="ghost" size="icon-xs" aria-label="复制公网入口" onClick={() => copyText(publicHost + ':' + rule.publicPort)}><Copy/></Button>}</span></TableCell>
+        <TableCell className="font-mono text-xs">{rule.targetPort}</TableCell><TableCell>{rule.note || '—'}</TableCell><TableCell><Status state={rule.state}/>{rule.error && <div className="text-xs text-destructive-foreground">{rule.error}</div>}</TableCell><TableCell className="pe-6"><div className="flex justify-end gap-1">
           <Button type="button" size="xs" variant="ghost" loading={command.pending} onClick={() => command.run(prefix + '/forwards/' + rule.id + '/' + (rule.enabled ? 'disable' : 'enable'))}>{rule.enabled ? '暂停' : '启用'}</Button>
           <Button type="button" size="xs" variant="ghost" loading={command.pending} onClick={() => command.run(prefix + '/forwards/' + rule.id + '/delete')}>删除</Button>
         </div></TableCell></TableRow>)}
-    </TableBody></Table> : <Empty title="还没有公网转发">添加一个转发，让外网访问你的服务。</Empty>}
+    </TableBody></Table> : <CardPanel><Empty title="还没有公网转发"/></CardPanel>}
     <Modal open={open} onClose={() => setOpen(false)} title="添加端口转发" description="目标地址固定为你的 LXC，公网端口可自动分配。"
       footer={<Button form="forward-form" type="submit" loading={command.pending} disabled={!admin && (!choice || choice.disabled)}>创建转发</Button>}>
       <Form id="forward-form" className="form-grid" onSubmit={async event => {
@@ -66,5 +70,5 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
         <Feedback error={command.error}/>
       </Form>
     </Modal>
-  </Panel>;
+  </Card>;
 }

@@ -17,7 +17,7 @@ try {
   await page.getByLabel('密码', { exact: true }).fill(credentials.password);
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByRole('heading', { name: /欢迎回来/ })).toBeVisible();
-  await expect(page.getByText('CPU 使用率', { exact: true })).toBeVisible();
+  await expect(page.getByText('网络接收', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '系统监听端口' })).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('NaN');
   mkdirSync('test-results', { recursive: true });

@@ -32,7 +32,11 @@ test('student sees published guides as collapsible rendered content', async ({ p
     return route.fulfill({ json: {} });
   });
   await page.goto('/');
-  await expect(page.locator('.machine-banner + .panel').getByRole('heading', { name: '使用指南', exact: true })).toBeVisible();
+  const guides = page.getByRole('region', { name: '指导书', exact: true });
+  await expect(guides).toBeVisible();
+  const machine = page.getByRole('heading', { name: /^a00123/ });
+  await expect(machine).toBeVisible();
+  expect((await guides.boundingBox())!.y).toBeLessThan((await machine.boundingBox())!.y);
   const trigger = page.getByRole('button', { name: '连接指南', exact: true });
   await expect(trigger).toBeVisible();
   await trigger.click();

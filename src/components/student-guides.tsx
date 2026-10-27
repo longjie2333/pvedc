@@ -1,15 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { request } from '@/lib/api';
-import { Feedback, Loading } from '@/components/common';
+import { Feedback } from '@/components/common';
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion';
+import { Card, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
 
 interface GuideView { id: string; title: string; html: string; defaultCollapsed: boolean; sortOrder: number }
 
 export function StudentGuides() {
   const query = useQuery({ queryKey: ['student-guides'], queryFn: () => request<{ guides: GuideView[] }>('me/guides'), staleTime: 30000 });
-  return <>{
-    query.isPending ? <div className="rounded-[10px] bg-white border-1"><Loading/></div>
-      : query.error ? <Feedback error={query.error.message}/>
-        : !!query.data?.guides.length && <div className="flex flex-col gap-1.5">{query.data.guides.map(guide => <div className="rounded-[10px] bg-white border-1"><Accordion {...(!guide.defaultCollapsed && { defaultValue: [guide.id] })} className="px-6"><AccordionItem key={guide.id} value={guide.id}><AccordionTrigger>{guide.title}</AccordionTrigger><AccordionPanel><div className="guide-content" dangerouslySetInnerHTML={{ __html: guide.html }}/></AccordionPanel></AccordionItem></Accordion></div>)}</div>
-  }</>;
+  if (query.error) return <Feedback error={query.error.message}/>;
+  const guides = query.data?.guides ?? [];
+  if (!guides.length) return null;
+  return <Card render={<section aria-labelledby="student-guides-title"/>}>
+    <CardHeader className="pb-2"><CardTitle render={<h2 id="student-guides-title"/>}>指导书</CardTitle></CardHeader>
+    <CardPanel className="pt-0">
+      <Accordion multiple defaultValue={guides.filter(guide => !guide.defaultCollapsed).map(guide => guide.id)}>
+        {guides.map(guide => <AccordionItem key={guide.id} value={guide.id}>
+          <AccordionTrigger>{guide.title}</AccordionTrigger>
+          <AccordionPanel><div className="guide-content" dangerouslySetInnerHTML={{ __html: guide.html }}/></AccordionPanel>
+        </AccordionItem>)}
+      </Accordion>
+    </CardPanel>
+  </Card>;
 }

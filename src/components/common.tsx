@@ -33,7 +33,6 @@ export function Status({ state }: { state: string }) { return <Badge variant={st
 export function PageTitle({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description: string; actions?: ReactNode }) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{actions && <div className="flex items-center gap-2">{actions}</div>}</div>;
 }
-export function Stat({ label, value, detail, icon }: { label: string; value: ReactNode; detail: string; icon?: ReactNode }) { return <div className="stat"><div className="stat-label">{label}{icon}</div><div className="stat-value">{value}</div><div className="stat-detail">{detail}</div></div>; }
 export function Modal({ open, onClose, title, description, children, footer, destructive = false }: { open: boolean; onClose: () => void; title: string; description: string; children: ReactNode; footer?: ReactNode; destructive?: boolean }) {
   const Root = destructive ? AlertDialog : Dialog, Popup = destructive ? AlertDialogPopup : DialogPopup;
   const Header = destructive ? AlertDialogHeader : DialogHeader, Title = destructive ? AlertDialogTitle : DialogTitle;
