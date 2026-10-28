@@ -3,7 +3,7 @@ import { generateSync } from 'otplib';
 
 test('administrator can create and publish a Milkdown guide', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '管理员入口' }).click();
+  await page.getByRole('button', { name: '管理员登录' }).click();
   await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
   await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '指导书', exact: true }).click();

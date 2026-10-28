@@ -38,7 +38,7 @@ test('an expired refresh returns to login and incorrect credentials never trigge
   });
   await page.route('**/api/auth/student', route => route.fulfill({ status: 401, json: { error: '学号或密码不正确', code: 'REQUEST_FAILED' } }));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '登录学生工作台' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '登录', exact: true })).toHaveAttribute('aria-selected', 'true');
   expect(refreshes).toBe(1);
   await page.getByLabel('学号', { exact: true }).fill('a00123');
   await page.getByLabel('密码', { exact: true }).fill('Incorrect-password');

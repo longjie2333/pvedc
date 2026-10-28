@@ -5,7 +5,7 @@ test('administrator login, roster, network, profiles and responsive settings', a
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button', { name: '管理员入口' }).click();
+  await page.getByRole('button', { name: '管理员登录' }).click();
   await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
   await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '宿主机 r550', exact: true })).toBeVisible();
