@@ -52,10 +52,6 @@ pre { overflow: auto; padding: 20px; border-radius: 10px; background: #f0f4ef; f
 .feedback { padding: 12px 15px; background: #edf5ea; border: 1px solid #dfeadc; border-radius: 8px; color: #52704c; display: flex; align-items: center; gap: 10px; font-size: 12px; margin: 8px 0; }
 .feedback svg { width: 16px; height: 16px; }
 .feedback-error { color: #a7483d; background: #fcf1ee; border-color: #efd9d2; }
-.table-tools { display: flex; align-items: center; justify-content: space-between; padding: 16px 25px; gap: 15px; }
-.search-box { width: 300px; position: relative; }
-.search-box svg { position: absolute; top: 10px; left: 11px; width: 14px; height: 14px; color: #93a090; z-index: 1; }
-.search-box input { padding-left: 32px; }
 .inline-field-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
@@ -116,4 +112,4 @@ pre { overflow: auto; padding: 20px; border-radius: 10px; background: #f0f4ef; f
 .record-pagination-side [data-slot=field-label] { white-space: nowrap; }
 .record-pagination-side [data-slot=select-trigger] { width: 78px; min-height: 32px; }
 @media (max-width: 1100px) { .config-grid { gap: 15px; } }
-@media (max-width: 780px) { .page-heading { flex-wrap: wrap; }.page-heading h1 { font-size: 24px; }.config-grid { grid-template-columns: 1fr; }.form-grid { grid-template-columns: 1fr; }.table-tools { align-items: stretch; flex-direction: column; }.search-box { width: 100%; }.panel-heading { padding: 18px; flex-wrap: wrap; }.record-pagination { grid-template-columns: 1fr; justify-items: stretch; }.record-pagination-side { justify-content: space-between; }.record-pagination nav { justify-content: flex-start; }.guide-editor-shell { grid-template-columns: 1fr; min-height: calc(100dvh - 260px); }.guide-editor-sidebar { border-right: 0; border-bottom: 1px solid var(--border); max-height: 210px; overflow-y: auto; }.guide-editor-toolbar { align-items: flex-start; flex-wrap: wrap; }.guide-editor-toolbar-right { flex-wrap: wrap; justify-content: flex-end; }.guide-editor-toolbar-right [data-slot=label] { flex: 1 1 180px; } }
+@media (max-width: 780px) { .page-heading { flex-wrap: wrap; }.page-heading h1 { font-size: 24px; }.config-grid { grid-template-columns: 1fr; }.form-grid { grid-template-columns: 1fr; }.panel-heading { padding: 18px; flex-wrap: wrap; }.record-pagination { grid-template-columns: 1fr; justify-items: stretch; }.record-pagination-side { justify-content: space-between; }.record-pagination nav { justify-content: flex-start; }.guide-editor-shell { grid-template-columns: 1fr; min-height: calc(100dvh - 260px); }.guide-editor-sidebar { border-right: 0; border-bottom: 1px solid var(--border); max-height: 210px; overflow-y: auto; }.guide-editor-toolbar { align-items: flex-start; flex-wrap: wrap; }.guide-editor-toolbar-right { flex-wrap: wrap; justify-content: flex-end; }.guide-editor-toolbar-right [data-slot=label] { flex: 1 1 180px; } }

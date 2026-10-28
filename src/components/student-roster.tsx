@@ -1,23 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownToLine, Search } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, Ellipsis, Eye, EyeOff, Search, Upload, UserPlus, X } from 'lucide-react';
 import type { AdminStudent, Profile } from '../../shared/schema';
-import { batchActions, batchConfirmation, batchNames, type BatchAction, type BatchResult } from '../../shared/batch';
+import { batchConfirmation, batchNames, type BatchAction, type BatchResult } from '../../shared/batch';
 import { downloadFile, useCommand } from '@/lib/api';
-import { Choice, Empty, Feedback, Modal, Panel, Status, TextField } from './common';
+import { segmentedControlItemVariants, segmentedControlRootClassName } from '@/lib/segmented-control';
+import { Empty, Feedback, Modal, Status, TextField } from './common';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Checkbox } from './ui/checkbox';
-import { Input } from './ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
+import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from './ui/menu';
+import { RadioGroupPrimitive, RadioPrimitive } from './ui/radio-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
-export function StudentRoster({ students, profiles, onEdit, onMachine, onImport }: {
-  students: AdminStudent[]; profiles: Profile[]; onEdit: (student: AdminStudent) => void; onMachine: (student: AdminStudent) => void; onImport: () => void;
+type Filter = 'all' | 'claimed' | 'unclaimed';
+const powerActions: BatchAction[] = ['start', 'shutdown', 'reboot'];
+const matchesFilter = (student: AdminStudent, filter: Filter) => filter === 'all' || student.claimed === (filter === 'claimed');
+
+export function StudentRoster({ students, profiles, onAdd, onEdit, onMachine, onImport }: {
+  students: AdminStudent[]; profiles: Profile[]; onAdd: () => void; onEdit: (student: AdminStudent) => void; onMachine: (student: AdminStudent) => void; onImport: () => void;
 }) {
-  const [query, setQuery] = useState(''), [selected, setSelected] = useState<string[]>([]), [assign, setAssign] = useState('');
+  const [query, setQuery] = useState(''), [filter, setFilter] = useState<Filter>('all'), [selected, setSelected] = useState<string[]>([]);
   const [batch, setBatch] = useState<{ ids: string[]; action: BatchAction }>(), [confirmation, setConfirmation] = useState('');
   const [result, setResult] = useState<BatchResult>(), [resetStudent, setResetStudent] = useState<AdminStudent>();
-  const command = useCommand();
-  const filtered = useMemo(() => students.filter(student => [student.id, student.name, student.className].some(value => value.includes(query))), [students, query]);
+  const [revealed, setRevealed] = useState<string[]>([]);
+  const command = useCommand(), assign = useCommand({ toastErrors: true });
+  const filtered = useMemo(() => students.filter(student => matchesFilter(student, filter) && [student.id, student.name, student.className].some(value => value.includes(query))), [students, filter, query]);
+  const counts = { all: students.length, claimed: students.filter(student => student.claimed).length, unclaimed: students.filter(student => !student.claimed).length };
   const all = filtered.length > 0 && filtered.every(student => selected.includes(student.id));
   const expected = batch ? batchConfirmation(batch.action, batch.ids.length) : '';
   useEffect(() => {
@@ -25,37 +36,71 @@ export function StudentRoster({ students, profiles, onEdit, onMachine, onImport 
     setSelected(previous => { const current = previous.filter(id => existing.has(id)); return current.length === previous.length ? previous : current; });
   }, [filtered]);
   const chooseBatch = (action: BatchAction, ids = selected) => { setConfirmation(''); setBatch({ action, ids: [...ids] }); };
+  const toggleKey = (id: string) => setRevealed(previous => previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id]);
   return <>
-    <Panel title="全体学生" detail={'共 ' + students.length + ' 人'} action={<div className="flex gap-2"><Button type="button" variant="outline" onClick={onImport}>导入名单</Button><Button type="button" variant="outline" onClick={() => downloadFile('admin/students/export', 'students.csv')}><ArrowDownToLine/>导出</Button></div>}>
-      {!batch && !resetStudent && <Feedback error={command.error}/>}
-      <div className="flex flex-col gap-4 p-5">
-        <div className="flex flex-wrap items-center gap-2"><div className="search-box"><Search/><Input type="search" aria-label="搜索学生" placeholder="搜索学号、姓名或班级" value={query} onChange={event => { setQuery(event.target.value); setSelected([]); }}/></div>
-          <Button type="button" variant="outline" onClick={() => setSelected(filtered.map(student => student.id))}>全选</Button>
-          <Button type="button" variant="outline" onClick={() => setSelected(filtered.filter(student => !selected.includes(student.id)).map(student => student.id))}>反选</Button>
-          <Button type="button" variant="ghost" onClick={() => setSelected([])}>清空选择</Button><span className="text-sm text-muted-foreground">已选择 {selected.length} 人</span>
-        </div>
-        {selected.length > 0 && <div className="flex flex-col gap-3 border-t pt-4">
-          <div className="flex flex-wrap items-end gap-2"><Choice label="批量指定配置" value={assign} onChange={setAssign} items={[{ value: '', label: '取消指定' }, ...profiles.map(profile => ({ value: profile.id, label: profile.name }))]}/><Button type="button" loading={command.pending} onClick={() => command.run('admin/students/assign', { ids: selected, profileId: assign || null })}>应用</Button></div>
-          <div className="flex flex-wrap gap-2">{batchActions.map(action => <Button key={action} type="button" variant={['reclaim', 'delete'].includes(action) ? 'destructive-outline' : 'outline'} onClick={() => chooseBatch(action)}>{'批量' + batchNames[action]}</Button>)}</div>
-        </div>}
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <h1 className="font-semibold text-xl">学生名单</h1>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" onClick={() => downloadFile('admin/students/export', 'students.csv')}><ArrowDownToLine/>导出</Button>
+        <Button type="button" variant="outline" onClick={onImport}><Upload/>导入名单</Button>
+        <Button type="button" onClick={onAdd}><UserPlus/>添加学生</Button>
       </div>
-      {filtered.length ? <Table><TableHeader><TableRow><TableHead><Checkbox aria-label="全选当前结果" checked={all} indeterminate={selected.length > 0 && !all} onCheckedChange={checked => setSelected(checked ? filtered.map(student => student.id) : [])}/></TableHead><TableHead>学生</TableHead><TableHead>班级</TableHead><TableHead>认领密钥</TableHead><TableHead>指定配置</TableHead><TableHead>认领 / 资源</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>
-        {filtered.map(student => <TableRow key={student.id}>
-          <TableCell><Checkbox aria-label={'选择 ' + student.name} checked={selected.includes(student.id)} onCheckedChange={checked => setSelected(previous => checked ? [...previous, student.id] : previous.filter(id => id !== student.id))}/></TableCell>
-          <TableCell><strong>{student.name}</strong><small className="mono">{student.id}</small></TableCell><TableCell>{student.className || '—'}</TableCell>
-          <TableCell className="mono">{student.claimKey || '—'}</TableCell>
-          <TableCell>{profiles.find(profile => profile.id === student.profileId)?.name || '遵循平台规则'}</TableCell>
-          <TableCell><Status state={student.deleting ? 'deleting' : student.resource?.state || (student.claimed ? '已认领' : '未认领')}/>{student.resource && <small className="mono">{student.resource.networks[0].ip}</small>}</TableCell>
-          <TableCell><div className="flex gap-1"><Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => onEdit(student)}>编辑</Button>
-            {student.resource ? <Button type="button" size="xs" variant="ghost" onClick={() => onMachine(student)}>机器</Button> : student.claimed && <Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => setResetStudent(student)}>重置认领</Button>}
-            <Button type="button" size="xs" variant="ghost" disabled={student.deleting} onClick={() => chooseBatch('delete', [student.id])}>删除</Button>
-          </div></TableCell>
+    </div>
+    <Card>
+      <div className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
+        <RadioGroupPrimitive aria-label="认领状态" value={filter} onValueChange={value => { setFilter(value as Filter); setSelected([]); }} className={segmentedControlRootClassName}>
+          {([['all', '全部'], ['claimed', '已认领'], ['unclaimed', '未认领']] as const).map(([value, label]) => <RadioPrimitive.Root key={value} value={value} className={segmentedControlItemVariants({ state: 'checked' })}>{label}<span className="tabular-nums opacity-64">{counts[value]}</span></RadioPrimitive.Root>)}
+        </RadioGroupPrimitive>
+        <InputGroup className="w-full sm:ms-auto sm:w-64"><InputGroupInput type="search" aria-label="搜索学生" placeholder="学号、姓名或班级" value={query} onChange={event => { setQuery(event.target.value); setSelected([]); }}/><InputGroupAddon><Search/></InputGroupAddon></InputGroup>
+      </div>
+      {!batch && !resetStudent && command.error && <div className="px-6 pt-4"><Feedback error={command.error}/></div>}
+      {filtered.length ? <Table><TableHeader><TableRow>
+        <TableHead className="w-10 ps-6"><Checkbox aria-label="全选当前结果" checked={all} indeterminate={selected.length > 0 && !all} onCheckedChange={checked => setSelected(checked ? filtered.map(student => student.id) : [])}/></TableHead>
+        <TableHead>学生</TableHead><TableHead>班级</TableHead><TableHead>认领密钥</TableHead><TableHead>指定配置</TableHead><TableHead>状态</TableHead><TableHead className="w-12 pe-6"/>
+      </TableRow></TableHeader><TableBody>
+        {filtered.map(student => <TableRow key={student.id} data-state={selected.includes(student.id) ? 'selected' : undefined}>
+          <TableCell className="ps-6"><Checkbox aria-label={'选择 ' + student.name} checked={selected.includes(student.id)} onCheckedChange={checked => setSelected(previous => checked ? [...previous, student.id] : previous.filter(id => id !== student.id))}/></TableCell>
+          <TableCell><div className="font-medium">{student.name}</div><div className="font-mono text-muted-foreground text-xs">{student.id}</div></TableCell>
+          <TableCell className="text-muted-foreground">{student.className || '—'}</TableCell>
+          <TableCell>{student.claimKey ? <span className="inline-flex items-center gap-1 font-mono text-xs">{revealed.includes(student.id) ? student.claimKey : '••••••'}<Button type="button" variant="ghost" size="icon-xs" aria-label={(revealed.includes(student.id) ? '隐藏' : '显示') + student.name + '的认领密钥'} aria-pressed={revealed.includes(student.id)} onClick={() => toggleKey(student.id)}>{revealed.includes(student.id) ? <EyeOff/> : <Eye/>}</Button></span> : <span className="text-muted-foreground">—</span>}</TableCell>
+          <TableCell className="text-muted-foreground">{profiles.find(profile => profile.id === student.profileId)?.name || '遵循平台规则'}</TableCell>
+          <TableCell>{student.deleting || student.resource ? <Status state={student.deleting ? 'deleting' : student.resource!.state}/> : <Badge variant={student.claimed ? 'outline' : 'secondary'}>{student.claimed ? '已认领' : '未认领'}</Badge>}{student.resource && <div className="mt-0.5 font-mono text-muted-foreground text-xs">{student.resource.networks[0].ip}</div>}</TableCell>
+          <TableCell className="pe-6"><Menu>
+            <MenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={'操作 ' + student.name}/>}><Ellipsis/></MenuTrigger>
+            <MenuPopup align="end">
+              <MenuItem disabled={student.deleting} onClick={() => onEdit(student)}>编辑</MenuItem>
+              {student.resource && <MenuItem onClick={() => onMachine(student)}>查看机器</MenuItem>}
+              <MenuSeparator/>
+              {student.claimed && !student.resource && <MenuItem variant="destructive" disabled={student.deleting} onClick={() => setResetStudent(student)}>重置认领</MenuItem>}
+              <MenuItem variant="destructive" disabled={student.deleting} onClick={() => chooseBatch('delete', [student.id])}>删除</MenuItem>
+            </MenuPopup>
+          </Menu></TableCell>
         </TableRow>)}
-      </TableBody></Table> : <Empty title="没有匹配的学生">添加学生、导入名单或调整搜索条件。</Empty>}
-    </Panel>
-    {result && <Panel title="批量操作受理结果" detail="已提交的任务在后台继续执行" action={<Button type="button" variant="outline" render={<Link to="/admin/tasks"/>}>查看任务记录</Button>}>
-      <Table><TableHeader><TableRow><TableHead>学号</TableHead><TableHead>结果</TableHead></TableRow></TableHeader><TableBody>{result.items.map(item => <TableRow key={item.studentId}><TableCell>{item.studentId}</TableCell><TableCell>{item.status === 'queued' ? '已提交' : item.status === 'skipped' ? '已跳过' : '未受理'}<small>{item.message}</small></TableCell></TableRow>)}</TableBody></Table>
-    </Panel>}
+      </TableBody></Table> : <Empty title="没有匹配的学生"/>}
+    </Card>
+    {selected.length > 0 && <div role="toolbar" aria-label="批量操作" className="sticky bottom-4 z-20 mx-auto flex max-w-full flex-wrap items-center gap-1 rounded-xl border bg-popover p-1.5 ps-4 shadow-lg/5">
+      <span className="me-2 text-sm">已选择 <span className="font-medium tabular-nums">{selected.length}</span> 人</span>
+      <Button type="button" variant="ghost" size="sm" onClick={() => setSelected(filtered.filter(student => !selected.includes(student.id)).map(student => student.id))}>反选</Button>
+      <Menu>
+        <MenuTrigger render={<Button type="button" variant="ghost" size="sm" loading={assign.pending}/>}>指定配置<ChevronDown/></MenuTrigger>
+        <MenuPopup align="center" side="top">
+          {profiles.map(profile => <MenuItem key={profile.id} onClick={() => assign.run('admin/students/assign', { ids: selected, profileId: profile.id })}>{profile.name}</MenuItem>)}
+          {profiles.length > 0 && <MenuSeparator/>}
+          <MenuItem onClick={() => assign.run('admin/students/assign', { ids: selected, profileId: null })}>取消指定</MenuItem>
+        </MenuPopup>
+      </Menu>
+      <Menu>
+        <MenuTrigger render={<Button type="button" variant="ghost" size="sm"/>}>电源<ChevronDown/></MenuTrigger>
+        <MenuPopup align="center" side="top">{powerActions.map(action => <MenuItem key={action} onClick={() => chooseBatch(action)}>{batchNames[action]}</MenuItem>)}</MenuPopup>
+      </Menu>
+      <Button type="button" variant="ghost" size="sm" className="text-destructive-foreground" onClick={() => chooseBatch('reclaim')}>{batchNames.reclaim}</Button>
+      <Button type="button" variant="ghost" size="sm" className="text-destructive-foreground" onClick={() => chooseBatch('delete')}>{batchNames.delete}</Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="清空选择" onClick={() => setSelected([])}><X/></Button>
+    </div>}
+    {result && <Card>
+      <CardHeader className="pb-4"><CardTitle render={<h2/>}>批量操作受理结果</CardTitle><CardDescription>已提交的任务在后台继续执行</CardDescription><CardAction><Button type="button" variant="outline" size="sm" render={<Link to="/admin/tasks"/>}>查看任务记录</Button></CardAction></CardHeader>
+      <Table><TableHeader><TableRow><TableHead className="ps-6">学号</TableHead><TableHead className="pe-6">结果</TableHead></TableRow></TableHeader><TableBody>{result.items.map(item => <TableRow key={item.studentId}><TableCell className="ps-6 font-mono text-xs">{item.studentId}</TableCell><TableCell className="pe-6">{item.status === 'queued' ? '已提交' : item.status === 'skipped' ? '已跳过' : '未受理'}{item.message && <div className="text-muted-foreground text-xs">{item.message}</div>}</TableCell></TableRow>)}</TableBody></Table>
+    </Card>}
     <Modal destructive={batch?.action === 'delete' || batch?.action === 'reclaim'} open={!!batch} onClose={() => setBatch(undefined)} title={batch ? batchNames[batch.action] : '批量操作'}
       description={batch?.action === 'delete' ? '将停用账号，回收机器及转发，成功后删除名单；机器中的数据会被永久清空。' : batch?.action === 'reclaim' ? '将回收所选学生的机器及转发，系统盘数据会被永久清空。' : '对以下学生的机器提交后台操作，没有机器的学生会被跳过。'}
       footer={<Button type="button" variant={expected ? 'destructive' : 'default'} loading={command.pending} disabled={!!expected && confirmation !== expected} onClick={async () => {
