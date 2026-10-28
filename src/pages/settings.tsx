@@ -41,13 +41,13 @@ function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; p
     for (const key of ['pveTokenSecret', 'gostPassword', 'relayPassword']) if (payload[key] === '') delete payload[key];
     const saved = await command.run<SafeSettings>('admin/settings', payload, 'PUT');
     if (saved) setValues({ ...saved });
-  }} className="flex flex-col gap-5">
+  }} className="flex flex-col gap-6">
     <Feedback error={command.error}/>
     {groups.map((group, index) => <Panel key={group.title} title={group.title} detail={group.detail}>
       <div className="form-grid p-6">
         {section === 'platform' && index === 0 && <Choice label="默认资源配置（必须）" value={String(values.defaultProfileId || '')} onChange={value => setValues({ ...values, defaultProfileId: value || null })} items={[{ value: '', label: '请选择默认配置' }, ...profiles.filter(profile => profile.enabled && profile.published).map(profile => ({ value: profile.id, label: profile.name }))]}/>}
         {group.fields.filter(([, , type]) => type !== 'boolean').map(([key, label, type]) => type === 'textarea'
-          ? <Field key={key} className="col-span-full"><FieldLabel>{label}</FieldLabel><Textarea rows={4} className="mono text-xs" value={String(values[key] || '')} onChange={event => setValues({ ...values, [key]: event.target.value })}/></Field>
+          ? <Field key={key} className="col-span-full"><FieldLabel>{label}</FieldLabel><Textarea rows={4} className="font-mono text-xs" value={String(values[key] || '')} onChange={event => setValues({ ...values, [key]: event.target.value })}/></Field>
           : <TextField key={key} label={label} type={type === 'password' ? 'password' : type === 'number' ? 'number' : 'text'}
               value={type === 'array' ? (values[key] as number[]).join(', ') : String(values[key] ?? '')}
               hint={type === 'password' && initial.secrets[key as keyof SafeSettings['secrets']] ? '已配置；留空保留现有凭据' : undefined}
@@ -59,7 +59,7 @@ function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; p
           checked={!!values[key]} onChange={value => setValues({ ...values, [key]: value })}/>)}
       </section>}
     </Panel>)}
-    <div className="sticky-actions"><span>配置保存在本机数据库中</span><Button type="submit" loading={command.pending}>{section === 'platform' ? '保存平台设置' : '保存公网配置'}</Button></div>
+    <div className="sticky-actions"><Button type="submit" loading={command.pending}>{section === 'platform' ? '保存平台设置' : '保存公网配置'}</Button></div>
   </Form>;
 }
 

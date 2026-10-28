@@ -10,6 +10,7 @@ test('administrator can create and publish a Milkdown guide', async ({ page }) =
   await expect(page.locator('h1').filter({ hasText: /^指导书$/ })).toBeVisible();
   await page.getByRole('button', { name: '新建指导书' }).click();
   await page.getByLabel('指导书标题', { exact: true }).fill('浏览器验收指南');
+  await page.getByRole('button', { name: '打开源码视图' }).click();
   const source = page.locator('span.guide-source textarea');
   await expect(source).toBeVisible();
   await source.fill('# 浏览器验收指南\n\n{{machine.ip}}\n\n{{forward:22}}');

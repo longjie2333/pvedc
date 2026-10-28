@@ -27,5 +27,5 @@ export function StudentPage({ studentId }: { studentId: string }) {
 }
 
 export function StudentTasksPage() {
-  return <><PageTitle eyebrow="TASKS" title="任务记录" description="查看资源创建、操作和转发任务的执行状态。"/><TaskList/></>;
+  return <><PageTitle title="任务记录"/><TaskList/></>;
 }
