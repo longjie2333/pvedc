@@ -8,14 +8,15 @@ import { Dialog, DialogClose, DialogFooter, DialogHeader, DialogPanel, DialogPop
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Fieldset, FieldsetLegend } from './ui/fieldset';
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from './ui/alert-dialog';
 import type { ProfileSummary } from '../../shared/schema';
 
-export function TextField({ label, hint, type = 'text', ...props }: ComponentProps<typeof Input> & { label: string; hint?: string }) {
-  return <Field name={props.name}><FieldLabel>{label}</FieldLabel><Input type={type} {...props}/>{hint && <FieldDescription>{hint}</FieldDescription>}<FieldError/></Field>;
+export function TextField({ label, hint, hideLabel, type = 'text', ...props }: ComponentProps<typeof Input> & { label: string; hint?: string; hideLabel?: boolean }) {
+  return <Field name={props.name}><FieldLabel className={hideLabel ? 'sr-only' : undefined}>{label}</FieldLabel><Input type={type} {...props}/>{hint && <FieldDescription>{hint}</FieldDescription>}<FieldError/></Field>;
 }
-export function Choice({ label, value, onChange, items, name, disabled }: { label: string; value: string; onChange: (value: string) => void; items: { value: string; label: string; disabled?: boolean }[]; name?: string; disabled?: boolean }) {
-  return <Field name={name}><FieldLabel>{label}</FieldLabel><Select items={items} name={name} value={value} onValueChange={v => onChange(String(v ?? ''))} disabled={disabled}><SelectTrigger className="w-full"><SelectValue/></SelectTrigger><SelectPopup>{items.map(item => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectPopup></Select></Field>;
+export function Choice({ label, value, onChange, items, name, disabled, hideLabel }: { label: string; value: string; onChange: (value: string) => void; items: { value: string; label: string; disabled?: boolean }[]; name?: string; disabled?: boolean; hideLabel?: boolean }) {
+  return <Field name={name}><FieldLabel className={hideLabel ? 'sr-only' : undefined}>{label}</FieldLabel><Select items={items} name={name} value={value} onValueChange={v => onChange(String(v ?? ''))} disabled={disabled}><SelectTrigger className="w-full min-w-0"><SelectValue/></SelectTrigger><SelectPopup>{items.map(item => <SelectItem key={item.value} value={item.value} disabled={item.disabled}>{item.label}</SelectItem>)}</SelectPopup></Select></Field>;
 }
 export function ProfileChoice({ value, onChange, items }: { value: string; onChange: (value: string) => void; items: ProfileSummary[] }) {
   const options = [{ value: { id: '', name: '使用默认配置', cores: 0, memory: 0, disk: 0, distro: 'debian' as const }, label: '使用默认配置' }, ...items.map(item => ({ value: item, label: item.name }))];
@@ -43,6 +44,13 @@ export function Modal({ open, onClose, title, description, children, footer, des
 }
 export function Panel({ title, detail, children, action }: { title?: string; detail?: string; children: ReactNode; action?: ReactNode }) {
   return <Card className="min-w-0 overflow-hidden">{title && <CardHeader className="border-b py-4"><CardTitle render={<h2/>} className="text-base">{title}</CardTitle>{detail && <CardDescription>{detail}</CardDescription>}{action && <CardAction className="self-center">{action}</CardAction>}</CardHeader>}{children}</Card>;
+}
+/** A titled group of related form controls; sections stack with dividers inside editor dialogs. */
+export function FormSection({ legend, description, action, children }: { legend: string; description?: string; action?: ReactNode; children: ReactNode }) {
+  return <Fieldset className="flex min-w-0 flex-col gap-4">
+    <div className="flex items-start justify-between gap-3"><div className="flex flex-col gap-0.5"><FieldsetLegend className="text-sm">{legend}</FieldsetLegend>{description && <p className="text-muted-foreground text-xs">{description}</p>}</div>{action}</div>
+    {children}
+  </Fieldset>;
 }
 export const bytes = (n: number) => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GiB' : (n / 1048576).toFixed(0) + ' MiB';
 export const date = (n: number) => new Date(n * 1000).toLocaleString('zh-CN', { hour12: false });
