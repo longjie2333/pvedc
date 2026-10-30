@@ -100,6 +100,22 @@
 
 两类角色使用不同外壳，**不应** 共用同一套导航。
 
+### 4.0 代码组织
+
+| 目录 | 放什么 |
+| --- | --- |
+| `src/routes/` | 每个角色一份路由表（`admin-routes`、`student-routes`、`auth-routes`），按角色懒加载为一个 chunk |
+| `src/layouts/` | 外壳：`AdminLayout`、`StudentLayout`、`AuthLayout`（渲染 `Outlet`），页头操作槽 `header-actions` |
+| `src/pages/<角色>/` | 一个路由一个页面：取数、持有本页弹窗状态、组合组件；不放可复用的展示块 |
+| `src/components/common/` | 与业务无关的通用封装（表单字段、反馈、状态徽标、Panel、Modal、ConfirmAction、OTP、开关块、分页、图表提示、规格 Combobox） |
+| `src/components/<领域>/` | 业务组件：`activity`、`auth`、`catalog`、`forward`、`gost`、`guides`、`host`、`resource`、`settings`、`students` |
+| `src/components/ui/` | coss registry 原样组件，保留上游格式，不纳入 Prettier |
+
+- 页面布局由路由决定：**不应** 用组件状态在同一页面里切换不同的页面布局（如 `page === 'x' &&`、`mode` 状态切换表单）。Tab 若对应页面级内容，Tab 值取自 URL，切换即导航。
+- 卡片的操作按钮由页面以 children 组合（如 `ProfileCard`、`NetworkCard`），**不** 为每种操作加布尔或回调 props。
+- 同一实体的编辑器按实体拆分（`StudentEditor`、`ProfileEditor`、`NetworkEditor`），共用 `EditorDialog` 外壳，**不** 用 `kind` 分支。
+- 跨页面共用的管理端查询放在 `src/lib/queries.ts`，各页面直接读缓存，**不** 经 props 层层传递。
+
 ### 4.1 管理端：侧栏外壳
 
 - coss `Sidebar variant="inset"`，宽 16rem，背景 `--sidebar`；内容区为白色圆角面板，四周留 8px。
@@ -127,8 +143,9 @@
 - 品牌面板（≥1024px）：内边距上下 48px、左右 11%。品牌行 17px、字重 650，图标框 37px、圆角 10px、图标 23px；主标语块垂直居中，上下留 75px；主标语 → 副标语间距 27px，副标语 14px、行高 2；→ 特性列表间距 35px，列表 12px、行间距 12px、勾选图标 15px。
 - 同心圆底纹：450px 圆，右偏 -220px、下偏 -50px，1px `#ffffff0b` 边框，外加两圈 `box-shadow` 扩散（55px `#ffffff03`、110px `#ffffff02`），`aria-hidden`。
 - <1024px 品牌面板缩为表单上方的标语区（品牌行 14px、图标框 28px，主标语 `text-3xl`，副标语行高 28px），隐藏特性列表；颜色与桌面相同。
-- 表单区：底色 `--sidebar`，内容宽 `max-w-sm` 居中。表单上方先放 h2 标题和一行说明，标题随模式变化（如「登录学生工作台 / 使用学号和密码，继续你的项目。」「认领我的计算资源」「管理员验证」「设置管理员身份」），说明写本模式要做什么。
-- 同一角色的多种入口（登录 / 首次认领）用 Tabs，放在标题之下，每个 Tab 只挂载自己的表单；另一角色的入口（管理员登录）放在表单下方，用链接样式按钮。
+- 表单区：底色 `--sidebar`，内容宽 `max-w-sm` 居中。表单上方先放 h2 标题和一行说明（`AuthHeading`），每个入口是独立路由、写自己的标题（如 `/login`「登录学生工作台 / 使用学号和密码，继续你的项目。」、`/claim`「认领我的计算资源」、`/login/admin`「管理员验证」、`/setup`「设置管理员身份」），说明写本入口要做什么。
+- 同一角色的多种入口（登录 / 首次认领）用 Tabs，放在标题之下；Tab 由 URL 决定、切换即导航，只渲染当前路由的表单。另一角色的入口（管理员登录）放在表单下方，用链接样式按钮导航到对应路由。
+- 未登录访问受保护页面时转到登录路由并记住原路径，登录后回到该页面（只回到本角色的路径）。
 - 无 Tab 的模式（首次初始化、二次验证）只显示标题、说明和表单。
 - **不放** 英文眉标、页脚和图标块。
 
@@ -222,7 +239,7 @@
 - 趋势图用 recharts 面积图：高 220px，图表边距 `top/right/bottom 0、left -24`，让纵轴刻度贴近卡片内边距；只画水平网格线；坐标轴无轴线无刻度线，刻度 11px 次要色；时间轴 `minTickGap=60`；面积填充为同色 22% → 0 渐变；描边 1.75px；关闭动画（`isAnimationActive={false}`）。
 - 多指标用卡片头部 Tabs 切换，而不是平铺多张图；同一图中多系列时才显示图例。
 - 迷你图（指标卡内）：高 64px，贴卡片边缘，无坐标轴，描边 1.5px；面积用与趋势图相同的纵向渐变（`<linearGradient id="fill-{系列}">`，22% → 0），`Area` 的 `fill` 引用 `url(#fill-{系列})`，不再单独设 `fillOpacity`；底部圆角用 `clip-path` 裁切。有总量的指标（内存、磁盘）纵轴取 0 → 总量，面积高度就是占用比例；其余从 0 自动取上限。渐变 id 在同一页面内需唯一，同页出现多张同系列指标卡时要加前缀（如 `useId()`）。
-- 悬停提示统一用 `ChartTooltip`（`src/components/chart-tooltip.tsx`）：浮层样式，上方采样时间，下方每个系列一行（色点 + 值，多系列时加名称）。迷你图的提示允许溢出图表区域。
+- 悬停提示统一用 `ChartTooltip`（`src/components/common/chart-tooltip.tsx`）：浮层样式，上方采样时间，下方每个系列一行（色点 + 值，多系列时加名称）。迷你图的提示允许溢出图表区域。
 - 没有采样数据时显示空状态，不显示空坐标系。
 
 ### 6.5 按钮与菜单
@@ -364,8 +381,8 @@
 
 1. 复制 `src/styles.css` 中的变量块与通用规则（`.form-grid`、`.inline-field-action`、`.sticky-actions`、`.empty`、卡片内表格对齐规则），替换品牌色（3.1）。
 2. 按第 2 节从 registry 引入组件，并复制 `src/hooks/use-media-query.ts`、`src/lib/segmented-control.ts`。
-3. 复制共享组件 `src/components/common.tsx`（`PageTitle`、`Panel`、`Status`、`Feedback`、`Empty`、`Modal`、`TextField`、`Choice`、`FormSection`）与 `src/components/switch-setting.tsx`，按新项目的状态集修改 `stateNames` 与语义映射。
-4. 以 `src/components/app-shell.tsx` 为模板改写导航分组与品牌。
+3. 复制 `src/components/common/` 与 `src/lib/format.ts`，按新项目的状态集修改 `status.tsx` 的 `stateNames` 与语义映射。
+4. 以 `src/layouts/` 为模板改写导航分组与品牌，按 4.0 建立 `routes/`、`pages/` 目录。
 5. 按第 5 节选页面模板，按第 12 节验收。
 
 ## 14. 参考实现
@@ -373,18 +390,20 @@
 | 模式 | 文件 |
 | --- | --- |
 | 设计变量与通用样式 | `src/styles.css` |
-| 管理端侧栏外壳（含 `HeaderActions` / `HeaderButton`）、终端用户端顶栏外壳 | `src/components/app-shell.tsx` |
-| 登录页（品牌面板、Tabs 入口） | `src/pages/auth.tsx` |
-| 总览（KPI 条、Tabs 趋势图、不撑高行的 Meter 容量卡、可搜索表格） | `src/components/admin-overview.tsx` |
-| 图表悬停提示 | `src/components/chart-tooltip.tsx` |
-| 列表页（Radio 筛选、批量操作条、行菜单、敏感值） | `src/components/student-roster.tsx` |
-| 实体卡、带迷你图的指标卡、状态驱动操作、容器查询 | `src/components/resource.tsx` |
-| 卡片网格页 | `src/pages/admin.tsx`（资源配置、网络） |
-| 设置页与吸底保存 | `src/pages/settings.tsx` |
-| 列表 + 编辑区 | `src/pages/guides.tsx` |
-| 分组编辑弹窗、可增删行 | `src/pages/editors.tsx`、`src/components/resource-adjust.tsx` |
-| 共享原语封装 | `src/components/common.tsx` |
-| 引导信息置顶 | `src/components/student-guides.tsx`、`src/pages/student.tsx` |
+| 路由表（每个角色一个 chunk、登录后回到原路径） | `src/routes/*.tsx` |
+| 管理端侧栏外壳、终端用户端顶栏外壳、页头操作槽 | `src/layouts/admin-layout.tsx`、`src/layouts/student-layout.tsx`、`src/layouts/header-actions.tsx` |
+| 登录页（品牌面板、路由驱动的 Tabs 入口） | `src/layouts/auth-layout.tsx`、`src/pages/auth/*.tsx`、`src/components/auth/student-auth-tabs.tsx` |
+| 总览（KPI 条、Tabs 趋势图、不撑高行的 Meter 容量卡、可搜索表格） | `src/pages/admin/overview.tsx`、`src/components/host/host-metrics.tsx`、`src/components/resource/resource-table.tsx` |
+| 图表悬停提示 | `src/components/common/chart-tooltip.tsx` |
+| 列表页（Radio 筛选、批量操作条、行菜单、敏感值） | `src/pages/admin/students.tsx`、`src/components/students/student-roster.tsx` |
+| 实体卡、带迷你图的指标卡、状态驱动操作、容器查询 | `src/components/resource/machine-detail.tsx` |
+| 卡片网格页（操作以 children 组合） | `src/pages/admin/profiles.tsx`、`src/pages/admin/networks.tsx` |
+| 设置页与吸底保存（字段由数据声明） | `src/pages/admin/settings.tsx`、`src/components/settings/settings-form.tsx` |
+| URL 驱动的 Tabs（两个列表保持挂载） | `src/pages/admin/activity.tsx` |
+| 列表 + 编辑区 | `src/pages/admin/guides.tsx`、`src/components/guides/*.tsx` |
+| 分组编辑弹窗、可增删行 | `src/components/catalog/*-editor.tsx`、`src/components/resource/resource-adjust.tsx` |
+| 共享原语封装 | `src/components/common/*.tsx` |
+| 引导信息置顶 | `src/components/guides/student-guides.tsx`、`src/pages/student/workspace.tsx` |
 | 浏览器验收写法 | `tests/browser/*.spec.ts` |
 
 ## 15. 尚未覆盖
