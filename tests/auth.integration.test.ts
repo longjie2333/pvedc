@@ -11,23 +11,71 @@ import { request as httpRequest } from 'undici';
 
 const dir = mkdtempSync(resolve(tmpdir(), 'pvedc-api-test-'));
 const origin = 'http://127.0.0.1:3108';
-let server: ChildProcess, db: Database.Database, output = '';
-let setupCookie = '', adminCookie = '', studentCookie = '', secret = '';
+let server: ChildProcess,
+  db: Database.Database,
+  output = '';
+let setupCookie = '',
+  adminCookie = '',
+  studentCookie = '',
+  secret = '';
 async function call(path: string, body?: unknown, cookie = '', requestOrigin = origin) {
-  const response = await fetch(origin + '/api/' + path, { method: body === undefined ? 'GET' : 'POST', headers: { Cookie: cookie, Origin: requestOrigin, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await fetch(origin + '/api/' + path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {
+      Cookie: cookie,
+      Origin: requestOrigin,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   const json = await response.json();
-  return { response, json, cookie: response.headers.getSetCookie().map(c => c.split(';')[0]).join('; ') };
+  return {
+    response,
+    json,
+    cookie: response.headers
+      .getSetCookie()
+      .map(c => c.split(';')[0])
+      .join('; '),
+  };
 }
 beforeAll(async () => {
-  server = spawn(process.execPath, ['.output/server/index.mjs'], { env: { ...process.env, PDC_DATA_DIR: dir, PDC_TOTP_SECRET: '', PDC_INITIAL_SETTINGS: '', PORT: '3108', HOST: '127.0.0.1' }, windowsHide: true, stdio: 'pipe' });
-  server.stdout?.on('data', b => { output += b; }); server.stderr?.on('data', b => { output += b; });
+  server = spawn(process.execPath, ['.output/server/index.mjs'], {
+    env: {
+      ...process.env,
+      PDC_DATA_DIR: dir,
+      PDC_TOTP_SECRET: '',
+      PDC_INITIAL_SETTINGS: '',
+      PORT: '3108',
+      HOST: '127.0.0.1',
+    },
+    windowsHide: true,
+    stdio: 'pipe',
+  });
+  server.stdout?.on('data', b => {
+    output += b;
+  });
+  server.stderr?.on('data', b => {
+    output += b;
+  });
   const start = Date.now();
-  while (true) { try { await fetch(origin + '/api/setup/status'); break; } catch { if (Date.now() - start > 15000) throw new Error('Test server failed: ' + output); await new Promise(r => setTimeout(r, 100)); } }
+  while (true) {
+    try {
+      await fetch(origin + '/api/setup/status');
+      break;
+    } catch {
+      if (Date.now() - start > 15000) throw new Error('Test server failed: ' + output);
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
   db = new Database(resolve(dir, 'pvedc.sqlite'));
 }, 20000);
 afterAll(async () => {
   db?.close();
-  if (server && server.exitCode === null) { const closed = new Promise(resolve => server.once('exit', resolve)); server.kill(); await closed; }
+  if (server && server.exitCode === null) {
+    const closed = new Promise(resolve => server.once('exit', resolve));
+    server.kill();
+    await closed;
+  }
   if (!dir.startsWith(resolve(tmpdir(), 'pvedc-api-test-'))) throw new Error('Unsafe test cleanup path');
   rmSync(dir, { recursive: true, force: true });
 });
@@ -38,11 +86,26 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('setup/begin', {}, '', 'https://untrusted.invalid')).response.status).toBe(403);
   });
   it('binds pending setup to a single browser session', async () => {
-    const response = await httpRequest(origin + '/api/setup/begin', { method: 'POST', headers: { host: 'setup.example.test', origin: 'https://setup.example.test', 'x-forwarded-proto': 'https', 'content-type': 'application/json' }, body: '{}' });
+    const response = await httpRequest(origin + '/api/setup/begin', {
+      method: 'POST',
+      headers: {
+        host: 'setup.example.test',
+        origin: 'https://setup.example.test',
+        'x-forwarded-proto': 'https',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
     const cookies = [response.headers['set-cookie'] || []].flat();
-    const first = { response: { status: response.statusCode }, json: await response.body.json() as { secret: string; qr: string }, cookie: cookies.map(c => c.split(';')[0]).join('; ') }; expect(first.response.status).toBe(200);
+    const first = {
+      response: { status: response.statusCode },
+      json: (await response.body.json()) as { secret: string; qr: string },
+      cookie: cookies.map(c => c.split(';')[0]).join('; '),
+    };
+    expect(first.response.status).toBe(200);
     expect(cookies.join('')).toContain('Secure');
-    secret = first.json.secret; setupCookie = first.cookie;
+    secret = first.json.secret;
+    setupCookie = first.cookie;
     expect(first.json.qr).toMatch(/^data:image\/png;base64,/);
     expect((await call('setup/begin', {})).response.status).toBe(409);
     expect((await call('setup/begin', {}, setupCookie)).json.secret).toBe(secret);
@@ -50,7 +113,8 @@ describe('real HTTP authentication and authorization', () => {
   it('requires a valid TOTP, closes setup and issues a one-hour JWT', async () => {
     expect((await call('setup/complete', { code: '000000' }, setupCookie)).response.status).toBe(401);
     const result = await call('setup/complete', { code: generateSync({ secret }) }, setupCookie);
-    expect(result.response.status).toBe(200); adminCookie = result.cookie;
+    expect(result.response.status).toBe(200);
+    adminCookie = result.cookie;
     const claims = decodeJwt(adminCookie.split('; ')[0].split('=')[1]);
     expect(claims.exp! - claims.iat!).toBe(3600);
     expect(result.response.headers.getSetCookie().join('')).toContain('HttpOnly');
@@ -79,11 +143,22 @@ describe('real HTTP authentication and authorization', () => {
     expect(JSON.stringify(refreshed.json)).not.toContain(refreshOnly.split('=')[1]);
   });
   it('imports rosters transactionally and preserves leading zeros', async () => {
-    const result = await call('admin/students/import', { csv: '学号,姓名,班级\na00001234,测试同学,测试班\na00001235,第二位同学,测试班' }, adminCookie);
-    expect(result.response.status).toBe(200); expect(result.json.count).toBe(2);
-    const bad = await call('admin/students/import', { csv: '学号,姓名\na00001236,第三位\na00001236,重复' }, adminCookie);
+    const result = await call(
+      'admin/students/import',
+      { csv: '学号,姓名,班级\na00001234,测试同学,测试班\na00001235,第二位同学,测试班' },
+      adminCookie,
+    );
+    expect(result.response.status).toBe(200);
+    expect(result.json.count).toBe(2);
+    const bad = await call(
+      'admin/students/import',
+      { csv: '学号,姓名\na00001236,第三位\na00001236,重复' },
+      adminCookie,
+    );
     expect(bad.response.status).toBe(400);
-    expect((await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id)).toEqual(['a00001234', 'a00001235']);
+    expect(
+      (await call('admin/overview', undefined, adminCookie)).json.students.map((s: { id: string }) => s.id),
+    ).toEqual(['a00001234', 'a00001235']);
   });
   it('searches the public roster by name or case-insensitive student ID', async () => {
     const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
@@ -95,10 +170,18 @@ describe('real HTTP authentication and authorization', () => {
       expect((await call('public/roster?q=' + encodeURIComponent("' OR 1=1"))).json.students).toEqual([]);
       expect((await call('public/roster?q=' + 'x'.repeat(101))).response.status).toBe(400);
       expect(JSON.stringify(name.json)).not.toContain('password_hash');
-    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+    } finally {
+      db.prepare('UPDATE settings SET value=?').run(previous);
+    }
   });
   it('enforces stored claim keys and never leaks them to students', async () => {
-    const imported = await call('admin/students/import', { csv: '学号,姓名,班级,认领密钥\nb00002001,密钥同学,测试班,K7f2m9\nb00002002,免密钥同学,测试班,\nb00002003,私密同学,测试班,Student-only-key' }, adminCookie);
+    const imported = await call(
+      'admin/students/import',
+      {
+        csv: '学号,姓名,班级,认领密钥\nb00002001,密钥同学,测试班,K7f2m9\nb00002002,免密钥同学,测试班,\nb00002003,私密同学,测试班,Student-only-key',
+      },
+      adminCookie,
+    );
     expect(imported.response.status).toBe(200);
     const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
     db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...JSON.parse(previous), registrationOpen: true }));
@@ -107,13 +190,29 @@ describe('real HTTP authentication and authorization', () => {
       expect(keyed.json.students[0]).toMatchObject({ id: 'b00002001', keyRequired: true });
       expect((await call('public/roster?q=b00002002')).json.students[0].keyRequired).toBe(false);
       expect(JSON.stringify(keyed.json)).not.toContain('K7f2m9');
-      expect((await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password' })).response.status).toBe(400);
-      expect((await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password', claimKey: 'wrong-key' })).response.status).toBe(403);
+      expect(
+        (await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password' })).response.status,
+      ).toBe(400);
+      expect(
+        (
+          await call('public/claim', {
+            studentId: 'b00002001',
+            password: 'Student-key-password',
+            claimKey: 'wrong-key',
+          })
+        ).response.status,
+      ).toBe(403);
       // The correct key passes the guard and only stops at the unconfigured PVE credentials.
-      const passed = await call('public/claim', { studentId: 'b00002001', password: 'Student-key-password', claimKey: 'K7f2m9' });
+      const passed = await call('public/claim', {
+        studentId: 'b00002001',
+        password: 'Student-key-password',
+        claimKey: 'K7f2m9',
+      });
       expect(passed.response.status).toBe(409);
       expect(passed.json.error).toContain('PVE');
-      const stored = db.prepare('SELECT sealed FROM student_keys WHERE student_id=?').get('b00002001') as { sealed: string };
+      const stored = db.prepare('SELECT sealed FROM student_keys WHERE student_id=?').get('b00002001') as {
+        sealed: string;
+      };
       expect(stored.sealed).not.toContain('K7f2m9');
       const admin = await call('admin/overview', undefined, adminCookie);
       expect(admin.json.students.find((s: { id: string }) => s.id === 'b00002001').claimKey).toBe('K7f2m9');
@@ -122,36 +221,57 @@ describe('real HTTP authentication and authorization', () => {
       const csv = await exported.text();
       expect(csv.split('\n')[0]).toContain('认领密钥');
       expect(csv).toContain('K7f2m9');
-      db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-key-password'), 'b00002003');
+      db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(
+        await argon2.hash('Student-key-password'),
+        'b00002003',
+      );
       const login = await call('auth/student', { studentId: 'b00002003', password: 'Student-key-password' });
       expect(login.response.status).toBe(200);
       const mine = await call('me/overview', undefined, login.cookie);
       expect(mine.json.student.id).toBe('b00002003');
       expect(JSON.stringify(mine.json)).not.toContain('claimKey');
       expect(JSON.stringify(mine.json)).not.toContain('Student-only-key');
-    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+    } finally {
+      db.prepare('UPDATE settings SET value=?').run(previous);
+    }
   });
   it('does not expose credentials through settings or store them as plaintext', async () => {
     const result = await call('admin/settings', { pveTokenSecret: 'test-sensitive-value' }, adminCookie);
-    expect(result.response.status).toBe(200); expect(JSON.stringify(result.json)).not.toContain('test-sensitive-value');
+    expect(result.response.status).toBe(200);
+    expect(JSON.stringify(result.json)).not.toContain('test-sensitive-value');
     const row = db.prepare('SELECT value FROM settings').get() as { value: string };
     expect(row.value).not.toContain('test-sensitive-value');
   });
   it('rotates TOTP only after verifying old and new secrets, revoking old sessions', async () => {
-    const begin = await call('auth/rotate-begin', { code: generateSync({ secret, epoch: Math.floor(Date.now() / 1000) + 30 }) }, adminCookie);
+    const begin = await call(
+      'auth/rotate-begin',
+      { code: generateSync({ secret, epoch: Math.floor(Date.now() / 1000) + 30 }) },
+      adminCookie,
+    );
     expect(begin.response.status).toBe(200);
     const oldCookie = adminCookie;
-    const complete = await call('auth/rotate-complete', { code: generateSync({ secret: begin.json.secret }) }, adminCookie);
+    const complete = await call(
+      'auth/rotate-complete',
+      { code: generateSync({ secret: begin.json.secret }) },
+      adminCookie,
+    );
     expect(complete.response.status).toBe(200);
-    adminCookie = complete.cookie; secret = begin.json.secret;
+    adminCookie = complete.cookie;
+    secret = begin.json.secret;
     expect((await call('admin/overview', undefined, oldCookie)).response.status).toBe(401);
     expect((await call('auth/refresh', {}, oldCookie)).response.status).toBe(401);
     expect((await call('admin/overview', undefined, adminCookie)).response.status).toBe(200);
   });
   it('preserves local administration after configuring a public HTTPS origin', async () => {
-    expect((await call('admin/settings', { publicOrigin: 'https://compute.example.test' }, adminCookie)).response.status).toBe(200);
-    expect((await call('admin/settings', { title: 'Still locally accessible' }, adminCookie)).response.status).toBe(200);
-    expect((await call('admin/settings', { title: 'Rejected' }, adminCookie, 'https://untrusted.invalid')).response.status).toBe(403);
+    expect(
+      (await call('admin/settings', { publicOrigin: 'https://compute.example.test' }, adminCookie)).response.status,
+    ).toBe(200);
+    expect((await call('admin/settings', { title: 'Still locally accessible' }, adminCookie)).response.status).toBe(
+      200,
+    );
+    expect(
+      (await call('admin/settings', { title: 'Rejected' }, adminCookie, 'https://untrusted.invalid')).response.status,
+    ).toBe(403);
   });
   it('accepts wildcard Web binding while keeping deployment generation removed', async () => {
     expect((await call('admin/settings', { webBindHost: '0.0.0.0' }, adminCookie)).response.status).toBe(200);
@@ -159,16 +279,30 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/settings', { webBindHost: '224.0.0.1' }, adminCookie)).response.status).toBe(400);
   });
   it('authenticates students without granting administrator access', async () => {
-    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(await argon2.hash('Student-test-password'), 'a00001234');
+    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(
+      await argon2.hash('Student-test-password'),
+      'a00001234',
+    );
     const result = await call('auth/student', { studentId: 'a00001234', password: 'Student-test-password' });
-    expect(result.response.status).toBe(200); studentCookie = result.cookie;
+    expect(result.response.status).toBe(200);
+    studentCookie = result.cookie;
     expect((await call('admin/overview', undefined, studentCookie)).response.status).toBe(403);
-    expect((await call('admin/students/batch', { ids: ['a00001235'], action: 'delete', confirmation: '删除 1 名学生' }, studentCookie)).response.status).toBe(403);
+    expect(
+      (
+        await call(
+          'admin/students/batch',
+          { ids: ['a00001235'], action: 'delete', confirmation: '删除 1 名学生' },
+          studentCookie,
+        )
+      ).response.status,
+    ).toBe(403);
     expect((await call('admin/host/status', undefined, studentCookie)).response.status).toBe(403);
     expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('a00001234');
   });
   it('scopes task notifications to the owner and never returns task secrets', async () => {
-    const insert = db.prepare("INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,'succeeded','complete','{}','do-not-return',1,1)");
+    const insert = db.prepare(
+      "INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,'succeeded','complete','{}','do-not-return',1,1)",
+    );
     insert.run('owned-task', 'start', 'a00001234');
     insert.run('other-task', 'start', 'a00001235');
     const owned = await call('me/tasks/owned-task', undefined, studentCookie);
@@ -180,11 +314,14 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/tasks/other-task')).response.status).toBe(401);
   });
   it('serves paged activities and removes task arrays from overviews', async () => {
-    const insert = db.prepare("INSERT INTO jobs(id,type,student_id,state,step,payload,created_at,updated_at) VALUES(?,'start',?,'succeeded','complete','{}',1,1)");
+    const insert = db.prepare(
+      "INSERT INTO jobs(id,type,student_id,state,step,payload,created_at,updated_at) VALUES(?,'start',?,'succeeded','complete','{}',1,1)",
+    );
     for (let index = 0; index < 45; index++) insert.run('page-task-' + index, index % 2 ? 'a00001234' : 'a00001235');
     const first = await call('admin/tasks?page=1&pageSize=20', undefined, adminCookie);
     const second = await call('admin/tasks?page=2&pageSize=20', undefined, adminCookie);
-    expect(first.json.items).toHaveLength(20); expect(first.json.total).toBe(47);
+    expect(first.json.items).toHaveLength(20);
+    expect(first.json.total).toBe(47);
     expect(second.json.items).toHaveLength(20);
     const own = await call('me/tasks?studentId=a00001235&pageSize=100', undefined, studentCookie);
     expect(own.json.items.every((item: { studentId: string }) => item.studentId === 'a00001234')).toBe(true);
@@ -197,27 +334,40 @@ describe('real HTTP authentication and authorization', () => {
     const previous = (db.prepare('SELECT value FROM settings').get() as { value: string }).value;
     const settings = JSON.parse(previous);
     // Reuse the already encrypted fixture credential without introducing plaintext into storage.
-    db.prepare('UPDATE settings SET value=?').run(JSON.stringify({ ...settings, gostUser: 'api-test', gostPassword: settings.pveTokenSecret }));
+    db.prepare('UPDATE settings SET value=?').run(
+      JSON.stringify({ ...settings, gostUser: 'api-test', gostPassword: settings.pveTokenSecret }),
+    );
     try {
       const revealed = await call('admin/gost/authorization', undefined, adminCookie);
-      expect(revealed.json.authorization).toBe('Basic ' + Buffer.from('api-test:test-sensitive-value').toString('base64'));
+      expect(revealed.json.authorization).toBe(
+        'Basic ' + Buffer.from('api-test:test-sensitive-value').toString('base64'),
+      );
       expect(revealed.response.headers.get('cache-control')).toBe('no-store');
       expect((await call('admin/gost/authorization', undefined, studentCookie)).response.status).toBe(403);
       expect((await call('admin/gost/authorization')).response.status).toBe(401);
-      expect(JSON.stringify((await call('admin/settings', undefined, adminCookie)).json)).not.toContain(revealed.json.authorization);
+      expect(JSON.stringify((await call('admin/settings', undefined, adminCookie)).json)).not.toContain(
+        revealed.json.authorization,
+      );
       expect(JSON.stringify(db.prepare('SELECT * FROM audit').all())).not.toContain(revealed.json.authorization);
       expect(output).not.toContain(revealed.json.authorization);
-    } finally { db.prepare('UPDATE settings SET value=?').run(previous); }
+    } finally {
+      db.prepare('UPDATE settings SET value=?').run(previous);
+    }
   });
   it('requires the dedicated API synchronization endpoint and encrypts pending credentials', async () => {
     expect((await call('admin/settings', { gostUser: 'bypass-user' }, adminCookie)).response.status).toBe(400);
     const input = { gostApi: 'http://127.0.0.1:19080', gostUser: 'new-api-user', gostPassword: 'pending-api-password' };
     expect((await call('admin/gost/api', { ...input, gostApi: 'not-a-url' }, adminCookie)).response.status).toBe(400);
-    expect((await call('admin/gost/api', { ...input, gostApi: 'http://127.0.0.1:0' }, adminCookie)).response.status).toBe(400);
+    expect(
+      (await call('admin/gost/api', { ...input, gostApi: 'http://127.0.0.1:0' }, adminCookie)).response.status,
+    ).toBe(400);
     expect((await call('admin/gost/api', input, studentCookie)).response.status).toBe(403);
     const result = await call('admin/gost/api', input, adminCookie);
     expect(result.response.status).toBe(200);
-    const stored = db.prepare('SELECT payload,secret FROM jobs WHERE id=?').get(result.json.taskId) as { payload: string; secret: string };
+    const stored = db.prepare('SELECT payload,secret FROM jobs WHERE id=?').get(result.json.taskId) as {
+      payload: string;
+      secret: string;
+    };
     expect(stored.secret).toBeTruthy();
     expect(JSON.stringify(stored)).not.toContain(input.gostPassword);
     expect((await call('admin/settings', undefined, adminCookie)).json.gostUser).not.toBe('new-api-user');

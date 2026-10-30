@@ -8,51 +8,116 @@ import { resolve } from 'node:path';
 import { X509Certificate } from 'node:crypto';
 import { gostEndpoint, type GostApiSettings } from '../../shared/gost';
 
-interface GostResponse<T> { code: number; msg?: string; data?: T }
-interface Service { name: string; status?: { state: string; events?: { msg: string }[] }; [key: string]: unknown }
+interface GostResponse<T> {
+  code: number;
+  msg?: string;
+  data?: T;
+}
+interface Service {
+  name: string;
+  status?: { state: string; events?: { msg: string }[] };
+  [key: string]: unknown;
+}
 export const gostPrefix = () => 'pvedc-' + meta('instance_id')!.slice(0, 8) + '-';
-export async function gost<T>(path: string, method = 'GET', data?: unknown, settings: GostApiSettings = getSettings(), timeoutMs = 15000): Promise<T> {
+export async function gost<T>(
+  path: string,
+  method = 'GET',
+  data?: unknown,
+  settings: GostApiSettings = getSettings(),
+  timeoutMs = 15000,
+): Promise<T> {
   ensure(settings.gostPassword, 409, '请先配置 gost API 认证');
   let response;
   try {
-    response = await fetch(gostEndpoint(settings.gostApi).connectUrl + path, { method, signal: AbortSignal.timeout(timeoutMs),
-      headers: { Authorization: 'Basic ' + Buffer.from(settings.gostUser + ':' + settings.gostPassword).toString('base64'), 'Content-Type': 'application/json' },
+    response = await fetch(gostEndpoint(settings.gostApi).connectUrl + path, {
+      method,
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(settings.gostUser + ':' + settings.gostPassword).toString('base64'),
+        'Content-Type': 'application/json',
+      },
       body: data === undefined ? undefined : JSON.stringify(data),
     });
-  } catch { throw new AppError(502, 'gost API 连接失败', 'GOST_UNREACHABLE'); }
-  if (!response.ok) { await response.body?.cancel(); throw new AppError(502, 'gost 操作失败（HTTP ' + response.status + '）'); }
+  } catch {
+    throw new AppError(502, 'gost API 连接失败', 'GOST_UNREACHABLE');
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new AppError(502, 'gost 操作失败（HTTP ' + response.status + '）');
+  }
   let result: GostResponse<T>;
-  try { result = await response.json() as GostResponse<T>; }
-  catch { throw new AppError(502, 'gost API 返回格式异常'); }
+  try {
+    result = (await response.json()) as GostResponse<T>;
+  } catch {
+    throw new AppError(502, 'gost API 返回格式异常');
+  }
   ensure(response.ok && (!result.code || result.code === 200), 502, 'gost 操作失败（HTTP ' + response.status + '）');
   if (path === '/config' && method === 'GET') return result as T;
   return result.data as T;
 }
 export function gostApiUpdating() {
-  return !!getDb().prepare("SELECT id FROM jobs WHERE type='gost-api-update' AND state IN ('queued','running','attention')").get();
+  return !!getDb()
+    .prepare("SELECT id FROM jobs WHERE type='gost-api-update' AND state IN ('queued','running','attention')")
+    .get();
 }
 async function upsert(path: string, name: string, value: unknown, existing: boolean) {
   await gost(existing ? path + '/' + encodeURIComponent(name) : path, existing ? 'PUT' : 'POST', value);
 }
 export async function configureGost() {
   ensure(!gostApiUpdating(), 409, 'gost API 正在同步或恢复，请稍后应用公网配置');
-  const s = getSettings(), prefix = gostPrefix(), chain = prefix + 'relay';
-  ensure(s.relayHost && s.relayUser && s.relayPassword && s.relayServerName, 400, '请填写 Relay 地址、认证及 TLS 服务名');
+  const s = getSettings(),
+    prefix = gostPrefix(),
+    chain = prefix + 'relay';
+  ensure(
+    s.relayHost && s.relayUser && s.relayPassword && s.relayServerName,
+    400,
+    '请填写 Relay 地址、认证及 TLS 服务名',
+  );
   let caFile: string | undefined;
   if (s.relayCa) {
-    try { new X509Certificate(s.relayCa); } catch { throw new AppError(400, 'Relay CA 证书格式无效'); }
+    try {
+      new X509Certificate(s.relayCa);
+    } catch {
+      throw new AppError(400, 'Relay CA 证书格式无效');
+    }
     caFile = resolve(dataDir(), 'relay-ca.pem');
     writeFileSync(caFile, s.relayCa, { mode: 0o600 });
   }
   const config = await gost<{ chains?: { name: string }[]; services?: Service[] }>('/config');
-  await upsert('/config/chains', chain, { name: chain, hops: [{ name: prefix + 'hop', nodes: [{ name: prefix + 'server', addr: s.relayHost + ':' + s.relayPort,
-    connector: { type: 'relay', auth: { username: s.relayUser, password: s.relayPassword } },
-    dialer: { type: 'tls', tls: { serverName: s.relayServerName, secure: true, caFile } },
-  }] }] }, !!config.chains?.some(c => c.name === chain));
+  await upsert(
+    '/config/chains',
+    chain,
+    {
+      name: chain,
+      hops: [
+        {
+          name: prefix + 'hop',
+          nodes: [
+            {
+              name: prefix + 'server',
+              addr: s.relayHost + ':' + s.relayPort,
+              connector: { type: 'relay', auth: { username: s.relayUser, password: s.relayPassword } },
+              dialer: { type: 'tls', tls: { serverName: s.relayServerName, secure: true, caFile } },
+            },
+          ],
+        },
+      ],
+    },
+    !!config.chains?.some(c => c.name === chain),
+  );
   const name = prefix + 'web';
-  await upsert('/config/services', name, { name, addr: s.webBindHost + ':' + s.webTunnelPort,
-    handler: { type: 'rtcp' }, listener: { type: 'rtcp', chain }, forwarder: { nodes: [{ name: 'web', addr: '127.0.0.1:' + s.webLocalPort }] },
-  }, !!config.services?.some(c => c.name === name));
+  await upsert(
+    '/config/services',
+    name,
+    {
+      name,
+      addr: s.webBindHost + ':' + s.webTunnelPort,
+      handler: { type: 'rtcp' },
+      listener: { type: 'rtcp', chain },
+      forwarder: { nodes: [{ name: 'web', addr: '127.0.0.1:' + s.webLocalPort }] },
+    },
+    !!config.services?.some(c => c.name === name),
+  );
   await gost('/config?format=json', 'POST');
 }
 export async function syncForwards(resourceId?: string, pause = false) {
@@ -61,7 +126,8 @@ export async function syncForwards(resourceId?: string, pause = false) {
   const prefix = gostPrefix();
   const rules = forwards().filter(f => !resourceId || f.resourceId === resourceId);
   for (const rule of rules) {
-    const name = prefix + rule.id, found = existing.list?.find(s => s.name === name);
+    const name = prefix + rule.id,
+      found = existing.list?.find(s => s.name === name);
     const resource = resources().find(r => r.id === rule.resourceId);
     const active = rule.enabled && !pause && resource?.state === 'ready' && !!resource.networks[0];
     if (!active) {
@@ -69,15 +135,23 @@ export async function syncForwards(resourceId?: string, pause = false) {
       getDb().prepare('UPDATE forwards SET state=?,error=NULL WHERE id=?').run('paused', rule.id);
       continue;
     }
-    const value = { name, addr: '0.0.0.0:' + rule.publicPort, handler: { type: 'r' + rule.protocol }, listener: { type: 'r' + rule.protocol, chain: prefix + 'relay' },
-      forwarder: { nodes: [{ name: 'target', addr: resource.networks[0].ip + ':' + rule.targetPort }] } };
-    const { status: _status, ...current } = found || {} as Service;
-    if (!found || current.addr !== value.addr || JSON.stringify(current.forwarder) !== JSON.stringify(value.forwarder)) await upsert('/config/services', name, value, !!found);
+    const value = {
+      name,
+      addr: '0.0.0.0:' + rule.publicPort,
+      handler: { type: 'r' + rule.protocol },
+      listener: { type: 'r' + rule.protocol, chain: prefix + 'relay' },
+      forwarder: { nodes: [{ name: 'target', addr: resource.networks[0].ip + ':' + rule.targetPort }] },
+    };
+    const { status: _status, ...current } = found || ({} as Service);
+    if (!found || current.addr !== value.addr || JSON.stringify(current.forwarder) !== JSON.stringify(value.forwarder))
+      await upsert('/config/services', name, value, !!found);
     getDb().prepare('UPDATE forwards SET state=?,error=NULL WHERE id=?').run('pending', rule.id);
   }
   if (!resourceId) {
     const names = new Set(forwards().map(f => prefix + f.id));
-    for (const service of existing.list || []) if (service.name.startsWith(prefix) && service.name !== prefix + 'web' && !names.has(service.name)) await gost('/config/services/' + service.name, 'DELETE');
+    for (const service of existing.list || [])
+      if (service.name.startsWith(prefix) && service.name !== prefix + 'web' && !names.has(service.name))
+        await gost('/config/services/' + service.name, 'DELETE');
   }
   await gost('/config?format=json', 'POST');
 }

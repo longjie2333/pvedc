@@ -15,13 +15,22 @@ export default api(async event => {
   const [, , , action, id, operation] = event.url.pathname.split('/');
   const resource = resources().find(r => r.studentId === user.sub);
   if (event.req.method === 'GET') {
-    if (action === 'guides') return { guides: await publishedGuideViews(resource, forwards(user.sub), getSettings().publicHost) };
-    if (action === 'tasks') return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
+    if (action === 'guides')
+      return { guides: await publishedGuideViews(resource, forwards(user.sub), getSettings().publicHost) };
+    if (action === 'tasks')
+      return id ? taskForActor(id, user) : taskPage(Object.fromEntries(event.url.searchParams), user);
     if (action === 'overview') {
       const settings = getSettings();
-      return { student: students().find(s => s.id === user.sub), resource, forwards: forwards(user.sub),
-        publicHost: settings.publicHost, selfSelection: settings.selfSelection, defaultProfileId: settings.defaultProfileId,
-        profiles: profiles().filter(p => p.enabled && p.published).map(p => ({ id: p.id, name: p.name, cores: p.cores, memory: p.memory, disk: p.disk, distro: p.distro })),
+      return {
+        student: students().find(s => s.id === user.sub),
+        resource,
+        forwards: forwards(user.sub),
+        publicHost: settings.publicHost,
+        selfSelection: settings.selfSelection,
+        defaultProfileId: settings.defaultProfileId,
+        profiles: profiles()
+          .filter(p => p.enabled && p.published)
+          .map(p => ({ id: p.id, name: p.name, cores: p.cores, memory: p.memory, disk: p.disk, distro: p.distro })),
         forwarding: { quota: settings.forwardQuota, portStart: settings.portStart, portEnd: settings.portEnd },
       };
     }
@@ -43,7 +52,14 @@ export default api(async event => {
   ensure(resource, 404, '尚未创建资源');
   if (action === 'forwards') return createForward(user, resource.id, await body(event, forwardSchema));
   if (action === 'resource' && id) {
-    const input = await body(event, z.object({ password: password.optional(), newPassword: password.optional(), confirmation: z.string().optional() }));
+    const input = await body(
+      event,
+      z.object({
+        password: password.optional(),
+        newPassword: password.optional(),
+        confirmation: z.string().optional(),
+      }),
+    );
     return resourceAction(user, resource.id, id, input);
   }
   ensure(false, 404, '接口不存在');

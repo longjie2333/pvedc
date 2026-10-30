@@ -5,10 +5,21 @@ import { spawn } from 'node:child_process';
 import { generateSync } from 'otplib';
 
 const credentials = JSON.parse(readFileSync('.data/ui-fixture.json', 'utf8'));
-const tunnel = spawn('ssh', ['-N', '-o', 'ExitOnForwardFailure=yes', '-L', '127.0.0.1:3112:127.0.0.1:3111', 'pve'], { windowsHide: true, stdio: 'ignore' });
+const tunnel = spawn('ssh', ['-N', '-o', 'ExitOnForwardFailure=yes', '-L', '127.0.0.1:3112:127.0.0.1:3111', 'pve'], {
+  windowsHide: true,
+  stdio: 'ignore',
+});
 const browser = await chromium.launch({ channel: 'chromium', headless: true });
 try {
-  await expect.poll(async () => { try { return (await fetch('http://127.0.0.1:3112/api/setup/status')).ok; } catch { return false; } }).toBe(true);
+  await expect
+    .poll(async () => {
+      try {
+        return (await fetch('http://127.0.0.1:3112/api/setup/status')).ok;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -33,7 +44,9 @@ try {
   admin.on('pageerror', error => errors.push(error.message));
   await admin.goto('http://127.0.0.1:3112');
   await admin.getByRole('button', { name: '管理员登录' }).click();
-  await admin.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: credentials.adminSecret }));
+  await admin
+    .getByRole('textbox', { name: '动态验证码', exact: true })
+    .fill(generateSync({ secret: credentials.adminSecret }));
   await expect(admin.getByRole('heading', { name: /^宿主机 / })).toBeVisible();
   await expect(admin.getByRole('heading', { name: '容量', exact: true })).toBeVisible();
   await admin.screenshot({ path: 'test-results/admin-live.png', fullPage: true });
@@ -43,4 +56,7 @@ try {
   await expect(admin.getByText(/users:\(|fd=/)).toHaveCount(0);
   if (errors.length) throw new Error(errors.join('\n'));
   console.log('Live admin/student dashboards, OTP login, host metrics and mobile port picker verified.');
-} finally { await browser.close(); tunnel.kill(); }
+} finally {
+  await browser.close();
+  tunnel.kill();
+}

@@ -13,30 +13,46 @@ beforeAll(() => {
   const db = getDb();
   db.prepare('INSERT INTO students(id,name,created_at) VALUES(?,?,0)').run('a001', '张同学');
   db.prepare('INSERT INTO students(id,name,created_at) VALUES(?,?,0)').run('a002', '李同学');
-  const job = db.prepare('INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)');
+  const job = db.prepare(
+    'INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
+  );
   const audit = db.prepare('INSERT INTO audit(actor,action,target,created_at) VALUES(?,?,?,?)');
   db.transaction(() => {
     for (let i = 0; i < 65; i++) {
-      job.run('job-' + String(i).padStart(3, '0'), i % 2 ? 'start' : 'shutdown', i % 2 ? 'a001' : 'a002', 'succeeded', 'complete', '{"secret":"hidden"}', 'never-expose', 100 + Math.floor(i / 2), 200);
+      job.run(
+        'job-' + String(i).padStart(3, '0'),
+        i % 2 ? 'start' : 'shutdown',
+        i % 2 ? 'a001' : 'a002',
+        'succeeded',
+        'complete',
+        '{"secret":"hidden"}',
+        'never-expose',
+        100 + Math.floor(i / 2),
+        200,
+      );
       audit.run(i % 2 ? 'admin' : 'a001', i % 2 ? 'resource.start' : 'resource.shutdown', 'resource-' + i, 100 + i);
     }
   })();
 });
 afterAll(() => {
-  closeDb(); delete process.env.PDC_DATA_DIR;
+  closeDb();
+  delete process.env.PDC_DATA_DIR;
   if (!directory.startsWith(resolve(tmpdir(), 'pvedc-activity-test-'))) throw new Error('Unsafe cleanup');
   rmSync(directory, { recursive: true, force: true });
 });
 
 it('pages tasks with stable ordering, totals, clamped last page and no secrets', () => {
-  const first = taskPage({}, admin), second = taskPage({ page: 2 }, admin);
-  expect(first.total).toBe(65); expect(first.items).toHaveLength(20);
+  const first = taskPage({}, admin),
+    second = taskPage({ page: 2 }, admin);
+  expect(first.total).toBe(65);
+  expect(first.items).toHaveLength(20);
   expect(second.items).toHaveLength(20);
   expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(40);
   expect(first.items.slice(0, 3).map(item => item.id)).toEqual(['job-064', 'job-063', 'job-062']);
   expect(JSON.stringify(first)).not.toMatch(/never-expose|hidden|payload|secret/);
   const last = taskPage({ page: 999, pageSize: 50 }, admin);
-  expect(last.page).toBe(2); expect(last.items).toHaveLength(15);
+  expect(last.page).toBe(2);
+  expect(last.items).toHaveLength(15);
 });
 
 it('filters tasks and enforces student ownership regardless of requested student ID', () => {

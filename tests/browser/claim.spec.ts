@@ -10,10 +10,19 @@ test('claim combobox searches remotely and only submits the selected roster iden
   await page.route('**/api/public/roster?*', route => {
     const query = new URL(route.request().url()).searchParams.get('q') || '';
     searches.push(query);
-    return route.fulfill({ json: { open: true, selfSelection: false, profiles: [], defaultProfileId: 'default',
-      students: students.filter(student => (student.id + student.name).includes(query)) } });
+    return route.fulfill({
+      json: {
+        open: true,
+        selfSelection: false,
+        profiles: [],
+        defaultProfileId: 'default',
+        students: students.filter(student => (student.id + student.name).includes(query)),
+      },
+    });
   });
-  await page.route('**/api/public/claim', route => route.fulfill({ status: 409, json: { error: '网络 校内私网 已无可用地址' } }));
+  await page.route('**/api/public/claim', route =>
+    route.fulfill({ status: 409, json: { error: '网络 校内私网 已无可用地址' } }),
+  );
   await page.goto('/');
   await page.getByRole('tab', { name: '首次认领', exact: true }).click();
   const picker = page.getByRole('combobox', { name: '我的学号' });

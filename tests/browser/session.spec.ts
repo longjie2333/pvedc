@@ -1,9 +1,15 @@
 import { test, expect } from '@playwright/test';
 
 test('concurrent protected requests share one refresh and retry once', async ({ page }) => {
-  let authorized = false, refreshes = 0;
+  let authorized = false,
+    refreshes = 0;
   const actor = { role: 'admin', sub: 'admin', sessionId: 'browser-session' };
-  const session = () => ({ actor, initialized: true, title: '续期测试', expiresAt: Math.floor(Date.now() / 1000) + 3600 });
+  const session = () => ({
+    actor,
+    initialized: true,
+    title: '续期测试',
+    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+  });
   await page.route('**/api/auth/session', route => route.fulfill({ json: session() }));
   await page.route('**/api/auth/refresh', async route => {
     refreshes++;
@@ -16,8 +22,12 @@ test('concurrent protected requests share one refresh and retry once', async ({ 
     const name = new URL(route.request().url()).pathname.split('/').pop()!;
     attempts.set(name, (attempts.get(name) || 0) + 1);
     if (!authorized) return route.fulfill({ status: 401, json: { error: '需要登录', code: 'AUTH_REQUIRED' } });
-    const json = name === 'overview' ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] }
-      : name === 'settings' ? { registrationOpen: false } : [];
+    const json =
+      name === 'overview'
+        ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] }
+        : name === 'settings'
+          ? { registrationOpen: false }
+          : [];
     return route.fulfill({ json });
   });
   await page.goto('/');
@@ -29,15 +39,23 @@ test('concurrent protected requests share one refresh and retry once', async ({ 
 });
 
 test('an expired refresh returns to login and incorrect credentials never trigger refresh', async ({ page }) => {
-  let expired = true, refreshes = 0;
-  await page.route('**/api/auth/session', route => route.fulfill(expired
-    ? { status: 401, json: { error: '需要刷新', code: 'AUTH_REQUIRED' } }
-    : { json: { actor: null, initialized: true, title: '续期测试' } }));
+  let expired = true,
+    refreshes = 0;
+  await page.route('**/api/auth/session', route =>
+    route.fulfill(
+      expired
+        ? { status: 401, json: { error: '需要刷新', code: 'AUTH_REQUIRED' } }
+        : { json: { actor: null, initialized: true, title: '续期测试' } },
+    ),
+  );
   await page.route('**/api/auth/refresh', route => {
-    refreshes++; expired = false;
+    refreshes++;
+    expired = false;
     return route.fulfill({ status: 401, json: { error: '登录已失效', code: 'SESSION_EXPIRED' } });
   });
-  await page.route('**/api/auth/student', route => route.fulfill({ status: 401, json: { error: '学号或密码不正确', code: 'REQUEST_FAILED' } }));
+  await page.route('**/api/auth/student', route =>
+    route.fulfill({ status: 401, json: { error: '学号或密码不正确', code: 'REQUEST_FAILED' } }),
+  );
   await page.goto('/');
   await expect(page.getByRole('tab', { name: '登录', exact: true })).toHaveAttribute('aria-selected', 'true');
   expect(refreshes).toBe(1);
@@ -52,12 +70,24 @@ test('refreshes proactively before the access deadline', async ({ page }) => {
   const epoch = Date.now();
   await page.clock.install({ time: new Date(epoch) });
   let refreshes = 0;
-  const session = () => ({ actor: { role: 'admin', sub: 'admin', sessionId: 'timer-session' }, initialized: true, title: '续期测试',
-    expiresAt: Math.floor(epoch / 1000) + (refreshes ? 3660 : 65) });
+  const session = () => ({
+    actor: { role: 'admin', sub: 'admin', sessionId: 'timer-session' },
+    initialized: true,
+    title: '续期测试',
+    expiresAt: Math.floor(epoch / 1000) + (refreshes ? 3660 : 65),
+  });
   await page.route('**/api/auth/session', route => route.fulfill({ json: session() }));
-  await page.route('**/api/auth/refresh', route => { refreshes++; return route.fulfill({ json: session() }); });
-  await page.route('**/api/admin/**', route => route.fulfill({ json: route.request().url().endsWith('/overview')
-    ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] } : {} }));
+  await page.route('**/api/auth/refresh', route => {
+    refreshes++;
+    return route.fulfill({ json: session() });
+  });
+  await page.route('**/api/admin/**', route =>
+    route.fulfill({
+      json: route.request().url().endsWith('/overview')
+        ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] }
+        : {},
+    }),
+  );
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(refreshes).toBe(0);

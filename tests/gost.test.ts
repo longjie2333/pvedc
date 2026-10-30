@@ -9,10 +9,18 @@ let server: Server;
 beforeAll(async () => {
   server = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
-    if (req.headers.authorization !== 'Basic ' + Buffer.from('test-user:test-password').toString('base64')) { res.writeHead(401); res.end('{}'); return; }
+    if (req.headers.authorization !== 'Basic ' + Buffer.from('test-user:test-password').toString('base64')) {
+      res.writeHead(401);
+      res.end('{}');
+      return;
+    }
     if (req.url === '/config') res.end(JSON.stringify({ services: [], api: { addr: '127.0.0.1:18080' } }));
-    else if (req.url === '/config/services') res.end(JSON.stringify({ data: { count: 1, list: [{ name: 'test-service' }] } }));
-    else { res.writeHead(500); res.end(JSON.stringify({ msg: 'private upstream error body', code: 500 })); }
+    else if (req.url === '/config/services')
+      res.end(JSON.stringify({ data: { count: 1, list: [{ name: 'test-service' }] } }));
+    else {
+      res.writeHead(500);
+      res.end(JSON.stringify({ msg: 'private upstream error body', code: 500 }));
+    }
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   config.gostApi = 'http://127.0.0.1:' + (server.address() as AddressInfo).port;

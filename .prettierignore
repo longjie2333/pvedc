@@ -1,0 +1,14 @@
+# Vendored COSS registry components keep their upstream formatting so registry updates stay diffable.
+src/components/ui/
+.output/
+node_modules/
+pnpm-lock.yaml
+mock/
+output/
+thesis/
+design/
+docs/
+deploy/
+test-results/
+playwright-report/
+*.md

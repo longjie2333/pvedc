@@ -11,14 +11,19 @@ function key() {
   if (!existsSync(path)) {
     const bytes = process.env.PDC_MASTER_KEY ? Buffer.from(process.env.PDC_MASTER_KEY, 'base64') : randomBytes(32);
     if (bytes.length !== 32) throw new Error('PDC_MASTER_KEY 必须为 Base64 编码的 32 字节密钥');
-    try { writeFileSync(path, bytes, { flag: 'wx', mode: 0o600 }); }
-    catch (e) { if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; }
+    try {
+      writeFileSync(path, bytes, { flag: 'wx', mode: 0o600 });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    }
   }
   master = readFileSync(path);
   if (master.length !== 32) throw new Error('主密钥文件无效');
   return master;
 }
-export function signingKey() { return new Uint8Array(hkdfSync('sha256', key(), '', 'pvedc-jwt-v1', 32)); }
+export function signingKey() {
+  return new Uint8Array(hkdfSync('sha256', key(), '', 'pvedc-jwt-v1', 32));
+}
 export function seal(value: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key(), iv);
