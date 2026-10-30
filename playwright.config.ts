@@ -18,6 +18,7 @@ export default defineConfig({
     { name: 'adjust', testMatch: /adjust\.spec\.ts/ },
     { name: 'claim', testMatch: /claim\.spec\.ts/ },
     { name: 'session', testMatch: /session\.spec\.ts/ },
+    { name: 'roster', testMatch: /roster\.spec\.ts/ },
     { name: 'setup', testMatch: /setup\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3113' } },
   ],
   webServer: [

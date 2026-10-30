@@ -11,7 +11,15 @@ export interface PendingAction {
 }
 
 /** Destructive confirmation that runs one API command and closes on success. */
-export function ConfirmAction({ action, onClose }: { action?: PendingAction; onClose: () => void }) {
+export function ConfirmAction({
+  action,
+  onClose,
+  confirmLabel = '确认',
+}: {
+  action?: PendingAction;
+  onClose: () => void;
+  confirmLabel?: string;
+}) {
   const command = useCommand();
   return (
     <Modal
@@ -28,7 +36,7 @@ export function ConfirmAction({ action, onClose }: { action?: PendingAction; onC
             if (action && (await command.run(action.path, {}, action.method || 'POST'))) onClose();
           }}
         >
-          确认
+          {confirmLabel}
         </Button>
       }
     >
