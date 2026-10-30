@@ -1,11 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
 import type { Network } from '../../../shared/schema';
-import type { BridgeOption } from '../../../shared/pve-options';
-import { request, useCommand } from '@/lib/api';
+import { useCommand } from '@/lib/api';
 import { Choice, FormSection, TextField } from '@/components/common/form-fields';
-import { Button } from '@/components/ui/button';
+import { BridgeField, useBridgeOptions } from './bridge-options';
 import { EditorDialog, withCurrent } from './editor-dialog';
 
 const list = (value: FormDataEntryValue | undefined) =>
@@ -17,15 +14,7 @@ export function NetworkEditor({ network, onClose }: { network?: Network; onClose
   const command = useCommand();
   const [mode, setMode] = useState(network?.mode || 'nat'),
     [bridge, setBridge] = useState(network?.bridge || '');
-  const bridges = useQuery({
-    queryKey: ['pve-options', 'networks'],
-    queryFn: () => request<BridgeOption[]>('admin/options/networks'),
-    enabled: mode === 'bridge',
-  });
-  const bridgeItems = (bridges.data || []).map(option => ({
-    value: option.iface,
-    label: option.iface + ' · ' + option.type + (option.address ? ' · ' + option.address : ''),
-  }));
+  const { query: bridges, items: bridgeItems } = useBridgeOptions(mode === 'bridge');
   const vlanAware = mode === 'bridge' && bridges.data?.find(option => option.iface === bridge)?.vlanAware;
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,20 +60,12 @@ export function NetworkEditor({ network, onClose }: { network?: Network; onClose
               <span className="text-foreground">{network?.mode === 'nat' ? network.bridge : '保存后自动生成'}</span>
             </p>
           ) : (
-            <div className="inline-field-action">
-              <Choice label="现有网桥" value={bridge} onChange={setBridge} items={withCurrent(bridgeItems, bridge)} />
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                aria-label="刷新网桥选项"
-                title="刷新网桥选项"
-                loading={bridges.isFetching}
-                onClick={() => void bridges.refetch()}
-              >
-                <RefreshCw />
-              </Button>
-            </div>
+            <BridgeField
+              label="现有网桥"
+              value={bridge}
+              onChange={setBridge}
+              items={withCurrent(bridgeItems, bridge)}
+            />
           )}
           {vlanAware && (
             <TextField label="VLAN（可留空）" name="vlan" type="number" defaultValue={String(network?.vlan ?? '')} />

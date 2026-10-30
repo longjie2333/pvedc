@@ -1,57 +1,31 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import type { BridgeOption } from '../../../shared/pve-options';
+import { AlertCircle, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import type { Network, Resource } from '../../../shared/schema';
 import { request, useCommand } from '@/lib/api';
-import { Choice, FormSection, TextField } from '@/components/common/form-fields';
+import {
+  adjustNetworks,
+  appendDraft,
+  draftIssues,
+  draftsFrom,
+  moveDraft,
+  networksChanged,
+  removeDraft,
+  type NicDraft,
+} from '@/lib/machine-adjust';
+import { useBridgeOptions } from '@/components/catalog/bridge-options';
+import { FormSection } from '@/components/common/form-fields';
 import { Feedback } from '@/components/common/feedback';
 import { Modal } from '@/components/common/modal';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Form } from '@/components/ui/form';
-import { Button } from '@/components/ui/button';
 import { SpecCombobox } from '@/components/common/spec-combobox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
+import { NicEditor } from './nic-editor';
 
-type MacMode = 'keep' | 'set' | 'auto';
-interface Row {
-  iface: string;
-  source: 'existing' | 'custom';
-  networkId: string;
-  bridge: string;
-  cidr: string;
-  ip: string;
-  gateway: string;
-  dns: string;
-  vlan: string;
-  macMode: MacMode;
-  mac: string;
-}
-const macPattern = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
-const addresses = (value: string) => value.split(/[\s,]+/).filter(Boolean);
+type Spec = { cores: string; memory: string; swap: string; disk: string };
 
-function initialRows(resource: Resource): Row[] {
-  return resource.networks.map((entry, index) => ({
-    iface: entry.iface,
-    source: entry.networkId ? 'existing' : 'custom',
-    networkId: entry.networkId || '',
-    bridge: entry.bridge,
-    cidr: entry.cidr,
-    ip: entry.ip,
-    gateway: index === 0 ? entry.gateway || '' : '',
-    dns: index === 0 ? entry.dns.join(', ') : '',
-    vlan: entry.vlan ? String(entry.vlan) : '',
-    macMode: 'keep',
-    mac: entry.mac || '',
-  }));
-}
-
-interface Sample<T> {
-  data: T | null;
-  error: string | null;
-  updatedAt: number | null;
-}
-
+/** Administrator spec and NIC adjustment; network changes on a running machine need a shutdown confirmation. */
 export function ResourceAdjust({
   resource,
   networks,
@@ -62,97 +36,29 @@ export function ResourceAdjust({
   onClose: () => void;
 }) {
   const command = useCommand();
-  const [rows, setRows] = useState<Row[]>(() => initialRows(resource));
-  const [confirming, setConfirming] = useState(false);
-  const [draft, setDraft] = useState<{ cores: string; memory: string; swap: string; disk: string }>();
+  const [drafts, setDrafts] = useState<NicDraft[]>(() => draftsFrom(resource.networks));
+  const [confirming, setConfirming] = useState(false),
+    [spec, setSpec] = useState<Spec>();
   const status = useQuery({
     queryKey: ['machine-status', resource.id],
-    queryFn: () => request<Sample<{ status: string }>>('admin/resources/' + resource.id + '/status'),
+    queryFn: () => request<{ data: { status: string } | null }>('admin/resources/' + resource.id + '/status'),
   });
   const running = status.data?.data?.status === 'running';
-  const bridges = useQuery({
-    queryKey: ['pve-options', 'networks'],
-    queryFn: () => request<BridgeOption[]>('admin/options/networks'),
-    enabled: rows.some(row => row.source === 'custom'),
-  });
-  const bridgeItems = (bridges.data || []).map(bridge => ({
-    value: bridge.iface,
-    label: bridge.iface + ' · ' + bridge.type + (bridge.address ? ' · ' + bridge.address : ''),
-  }));
-  const update = (index: number, patch: Partial<Row>) =>
-    setRows(previous => previous.map((row, itemIndex) => (itemIndex === index ? { ...row, ...patch } : row)));
-  const move = (index: number, offset: number) =>
-    setRows(previous => {
-      const list = [...previous],
-        target = index + offset;
-      [list[index], list[target]] = [list[target], list[index]];
-      return list.map((row, itemIndex) => ({ ...row, iface: 'eth' + itemIndex }));
-    });
-  const reachable = bridges.data !== undefined;
+  const bridges = useBridgeOptions(drafts.some(draft => draft.source === 'custom'));
+  const issues = draftIssues(drafts, bridges.query.data && bridges.items.map(item => item.value));
+  const networkName = (id: string) => networks.find(network => network.id === id)?.name || '已删除网络';
+  const update = (index: number, patch: Partial<NicDraft>) =>
+    setDrafts(previous => previous.map((draft, itemIndex) => (itemIndex === index ? { ...draft, ...patch } : draft)));
 
-  const errors = useMemo(
-    () =>
-      rows.flatMap((row, index) => {
-        const issues: string[] = [];
-        const label = '第 ' + (index + 1) + ' 块网卡（' + row.iface + '）';
-        if (row.source === 'existing') {
-          if (!row.networkId) issues.push(label + '未选择网络配置');
-        } else if (reachable) {
-          if (!bridgeItems.some(option => option.value === row.bridge)) issues.push(label + '请选择可用网桥');
-          if (!/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(row.cidr)) issues.push(label + '需要子网 CIDR');
-          if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(row.ip)) issues.push(label + '需要 IP 地址');
-        }
-        if (row.macMode === 'set' && !macPattern.test(row.mac)) issues.push(label + '的 MAC 地址格式无效');
-        return issues;
-      }),
-    [rows, bridges.data],
-  );
-
-  const networkChanged = (index: number, row: Row) => {
-    const before = resource.networks[index];
-    if (!before) return true;
-    if (row.source === 'custom')
-      return (
-        before.networkId !== null ||
-        before.bridge !== row.bridge ||
-        before.ip !== row.ip ||
-        (before.gateway || '') !== row.gateway ||
-        before.dns.join(',') !== addresses(row.dns).join(',') ||
-        (before.vlan ? String(before.vlan) : '') !== row.vlan
-      );
-    if (before.networkId !== row.networkId) return true;
-    if (row.macMode === 'auto') return !!before.mac;
-    if (row.macMode === 'set') return (before.mac || '').toUpperCase() !== row.mac.toUpperCase();
-    return false;
-  };
-  const anyNetworkChange = () =>
-    rows.length !== resource.networks.length || rows.some((row, index) => networkChanged(index, row));
-
-  async function submit(
-    confirmShutdown: boolean,
-    values?: { cores: string; memory: string; swap: string; disk: string },
-  ) {
-    const spec = {
-      cores: Number(values?.cores ?? resource.spec.cores),
-      memory: Number(values?.memory ?? resource.spec.memory),
-      swap: Number(values?.swap ?? resource.spec.swap),
-      disk: Number(values?.disk ?? resource.spec.disk),
-    };
-    const payload = rows.map((row, index) => ({
-      iface: row.iface,
-      networkId: row.source === 'existing' ? row.networkId : null,
-      bridge: row.bridge,
-      cidr: row.cidr,
-      ip: row.ip,
-      gateway: index === 0 ? row.gateway : '',
-      dns: index === 0 ? addresses(row.dns) : [],
-      vlan: row.vlan ? Number(row.vlan) : null,
-      macMode: row.macMode,
-      mac: row.macMode === 'set' ? row.mac : null,
-    }));
+  async function submit(confirmShutdown: boolean, values?: Spec) {
     const result = await command.run('admin/resources/' + resource.id + '/adjust', {
-      spec,
-      networks: payload,
+      spec: {
+        cores: Number(values?.cores ?? resource.spec.cores),
+        memory: Number(values?.memory ?? resource.spec.memory),
+        swap: Number(values?.swap ?? resource.spec.swap),
+        disk: Number(values?.disk ?? resource.spec.disk),
+      },
+      networks: adjustNetworks(drafts),
       confirmShutdown,
     });
     if (result) {
@@ -162,21 +68,11 @@ export function ResourceAdjust({
   }
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget)) as {
-      cores: string;
-      memory: string;
-      swap: string;
-      disk: string;
-    };
-    setDraft(values);
-    if (running && anyNetworkChange()) {
-      setConfirming(true);
-      return;
-    }
-    void submit(false, values);
+    const values = Object.fromEntries(new FormData(event.currentTarget)) as Spec;
+    setSpec(values);
+    if (running && networksChanged(resource.networks, drafts)) setConfirming(true);
+    else void submit(false, values);
   }
-  const networkName = (id: string) => networks.find(network => network.id === id)?.name || '已删除网络';
-
   return (
     <>
       <Modal
@@ -185,14 +81,14 @@ export function ResourceAdjust({
         title="调整机器配置"
         description={'VMID ' + resource.vmid + ' · ' + resource.studentId}
         footer={
-          <Button form="machine-adjust" type="submit" loading={command.pending} disabled={errors.length > 0}>
+          <Button form="machine-adjust" type="submit" loading={command.pending} disabled={issues.length > 0}>
             保存并应用
           </Button>
         }
       >
         <Form id="machine-adjust" className="flex flex-col gap-5" onSubmit={submitForm}>
           <Feedback error={command.error} />
-          <Feedback error={bridges.error?.message} />
+          <Feedback error={bridges.query.error?.message} />
           <div className="flex flex-col divide-y [&>*]:py-5 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
             <FormSection legend="规格">
               <div className="form-grid">
@@ -238,190 +134,63 @@ export function ResourceAdjust({
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={rows.length >= 8}
-                  onClick={() =>
-                    setRows(previous => [
-                      ...previous,
-                      {
-                        iface: 'eth' + previous.length,
-                        source: 'existing',
-                        networkId: '',
-                        bridge: '',
-                        cidr: '',
-                        ip: '',
-                        gateway: '',
-                        dns: '',
-                        vlan: '',
-                        macMode: 'keep',
-                        mac: '',
-                      },
-                    ])
-                  }
+                  disabled={drafts.length >= 8}
+                  onClick={() => setDrafts(appendDraft)}
                 >
                   <Plus />
                   添加网卡
                 </Button>
               }
             >
-              {rows.map((row, index) => (
-                <section key={index} aria-label={'网卡 ' + row.iface} className="rounded-xl border">
-                  <header className="flex items-center gap-2 border-b px-4 py-2">
-                    <span className="font-mono font-medium text-sm">{row.iface}</span>
-                    {index === 0 && <Badge variant="secondary">主网卡</Badge>}
-                    <span className="ms-2 min-w-0 flex-1 truncate text-muted-foreground text-xs">
-                      {row.source === 'existing'
-                        ? row.networkId
-                          ? '使用 ' + networkName(row.networkId) + ' 的地址池，未移动的网卡保留当前地址'
-                          : ''
-                        : '不占用地址池'}
-                    </span>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={'上移 ' + row.iface}
-                      disabled={index === 0}
-                      onClick={() => move(index, -1)}
-                    >
-                      <ChevronUp />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={'下移 ' + row.iface}
-                      disabled={index === rows.length - 1}
-                      onClick={() => move(index, 1)}
-                    >
-                      <ChevronDown />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={'删除 ' + row.iface}
-                      disabled={rows.length <= 1}
-                      onClick={() =>
-                        setRows(previous =>
-                          previous
-                            .filter((_, itemIndex) => itemIndex !== index)
-                            .map((item, itemIndex) => ({ ...item, iface: 'eth' + itemIndex })),
-                        )
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
-                  </header>
-                  <div className="form-grid p-4">
-                    <Choice
-                      label="配置模式"
-                      value={row.source}
-                      onChange={value => update(index, { source: value as Row['source'] })}
-                      items={[
-                        { value: 'existing', label: '使用已有网络配置' },
-                        { value: 'custom', label: '自定义配置' },
-                      ]}
-                    />
-                    {row.source === 'existing' ? (
-                      <Choice
-                        label="网络配置"
-                        value={row.networkId}
-                        onChange={value => update(index, { networkId: value })}
-                        items={[
-                          { value: '', label: '请选择' },
-                          ...networks.map(network => ({
-                            value: network.id,
-                            label: network.name + (network.ready ? '' : '（待应用）'),
-                          })),
-                        ]}
-                      />
-                    ) : (
-                      <>
-                        <div className="inline-field-action">
-                          <Choice
-                            label="网桥 / VNet"
-                            value={row.bridge}
-                            onChange={value => update(index, { bridge: value })}
-                            items={[{ value: '', label: '请选择' }, ...bridgeItems]}
-                          />
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            aria-label="刷新网桥选项"
-                            title="刷新网桥选项"
-                            loading={bridges.isFetching}
-                            onClick={() => void bridges.refetch()}
-                          >
-                            <RefreshCw />
-                          </Button>
-                        </div>
-                        <TextField
-                          label="子网 CIDR"
-                          value={row.cidr}
-                          onChange={event => update(index, { cidr: event.target.value })}
-                          placeholder="192.168.10.0/24"
-                          required
-                        />
-                        <TextField
-                          label="IP 地址"
-                          value={row.ip}
-                          onChange={event => update(index, { ip: event.target.value })}
-                          placeholder="192.168.10.20"
-                          required
-                        />
-                        {index === 0 && (
-                          <TextField
-                            label="网关"
-                            value={row.gateway}
-                            onChange={event => update(index, { gateway: event.target.value })}
-                            placeholder="192.168.10.1"
-                          />
-                        )}
-                        {index === 0 && (
-                          <TextField
-                            label="DNS（逗号分隔）"
-                            value={row.dns}
-                            onChange={event => update(index, { dns: event.target.value })}
-                            placeholder="223.5.5.5"
-                          />
-                        )}
-                        <TextField
-                          label="VLAN（可留空）"
-                          type="number"
-                          value={row.vlan}
-                          onChange={event => update(index, { vlan: event.target.value })}
-                        />
-                      </>
-                    )}
-                    <Choice
-                      label="MAC 地址"
-                      value={row.macMode}
-                      onChange={value => update(index, { macMode: value as MacMode })}
-                      items={[
-                        { value: 'keep', label: '保持当前 MAC' },
-                        { value: 'set', label: '指定新 MAC' },
-                        { value: 'auto', label: '留空由 PVE 自动分配' },
-                      ]}
-                    />
-                    {row.macMode === 'set' && (
-                      <TextField
-                        label="新 MAC 地址"
-                        value={row.mac}
-                        onChange={event => update(index, { mac: event.target.value })}
-                        placeholder="AA:BB:CC:DD:EE:FF"
-                        required
-                      />
-                    )}
-                  </div>
-                </section>
+              {drafts.map((draft, index) => (
+                <NicEditor
+                  key={index}
+                  draft={draft}
+                  primary={index === 0}
+                  networks={networks}
+                  onChange={patch => update(index, patch)}
+                  actions={
+                    <>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={'上移 ' + draft.iface}
+                        disabled={index === 0}
+                        onClick={() => setDrafts(previous => moveDraft(previous, index, -1))}
+                      >
+                        <ChevronUp />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={'下移 ' + draft.iface}
+                        disabled={index === drafts.length - 1}
+                        onClick={() => setDrafts(previous => moveDraft(previous, index, 1))}
+                      >
+                        <ChevronDown />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={'删除 ' + draft.iface}
+                        disabled={drafts.length <= 1}
+                        onClick={() => setDrafts(previous => removeDraft(previous, index))}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </>
+                  }
+                />
               ))}
-              {errors.length > 0 && (
+              {issues.length > 0 && (
                 <Alert variant="error">
                   <AlertCircle aria-hidden="true" />
                   <AlertDescription className="text-foreground">
                     <ul className="flex flex-col gap-0.5">
-                      {errors.map(issue => (
+                      {issues.map(issue => (
                         <li key={issue}>{issue}</li>
                       ))}
                     </ul>
@@ -439,17 +208,17 @@ export function ResourceAdjust({
         title="调整网络需要先关机"
         description="容器正在运行。平台将先执行优雅关机，应用网络与规格变更，然后自动重新启动容器；请确认可以中断服务。"
         footer={
-          <Button variant="destructive" loading={command.pending} onClick={() => void submit(true, draft)}>
+          <Button variant="destructive" loading={command.pending} onClick={() => void submit(true, spec)}>
             关机并应用调整
           </Button>
         }
       >
         <Feedback error={command.error} />
         <p className="text-sm">
-          将调整 {rows.length} 块网卡：
-          {rows
-            .map(row =>
-              row.source === 'existing' ? networkName(row.networkId) : '自定义 ' + (row.bridge || '未选择网桥'),
+          将调整 {drafts.length} 块网卡：
+          {drafts
+            .map(draft =>
+              draft.source === 'existing' ? networkName(draft.networkId) : '自定义 ' + (draft.bridge || '未选择网桥'),
             )
             .join('、')}
           。
