@@ -1,16 +1,16 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import type { Actor } from '../shared/schema';
 import { refreshBrowserSession, request } from '@/lib/api';
 import { Feedback, Loading } from '@/components/common/feedback';
-import { AdminShell, StudentShell } from '@/components/app-shell';
 import { AuthPage } from '@/pages/auth';
 import { ToastProvider } from '@/components/ui/toast';
 import { TaskNotifications } from '@/components/activity/task-notifications';
-const AdminPage = lazy(() => import('@/pages/admin').then(module => ({ default: module.AdminPage })));
-const StudentPage = lazy(() => import('@/pages/student').then(module => ({ default: module.StudentPage })));
-const StudentTasksPage = lazy(() => import('@/pages/student').then(module => ({ default: module.StudentTasksPage })));
+
+// One chunk per role: the layout and its pages arrive together, so their first queries run concurrently.
+const AdminRoutes = lazy(() => import('@/routes/admin-routes').then(module => ({ default: module.AdminRoutes })));
+const StudentRoutes = lazy(() => import('@/routes/student-routes').then(module => ({ default: module.StudentRoutes })));
 
 const client = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 2000 } },
@@ -58,31 +58,11 @@ function Application() {
   if (session.isPending) return <Loading />;
   if (session.error) return <Feedback error={session.error.message} />;
   if (!session.data.actor) return <AuthPage initialized={session.data.initialized} title={session.data.title} />;
-  const user = session.data.actor;
-  const content = (
+  const { actor, title } = session.data;
+  return (
     <Suspense fallback={<Loading />}>
-      <Routes>
-        {user.role === 'admin' ? (
-          <Route path="/admin/:page" element={<AdminPage />} />
-        ) : (
-          <>
-            <Route path="/student/workspace" element={<StudentPage studentId={user.sub} />} />
-            <Route path="/student/tasks" element={<StudentTasksPage />} />
-          </>
-        )}
-        <Route
-          path="*"
-          element={<Navigate replace to={user.role === 'admin' ? '/admin/overview' : '/student/workspace'} />}
-        />
-      </Routes>
+      {actor.role === 'admin' ? <AdminRoutes title={title} /> : <StudentRoutes title={title} actor={actor} />}
     </Suspense>
-  );
-  return user.role === 'admin' ? (
-    <AdminShell title={session.data.title}>{content}</AdminShell>
-  ) : (
-    <StudentShell title={session.data.title} actor={user}>
-      {content}
-    </StudentShell>
   );
 }
 export function App() {

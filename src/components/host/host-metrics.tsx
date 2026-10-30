@@ -1,23 +1,14 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRight, Search, Settings2 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { HostMetrics, Sample } from '../../shared/metrics';
-import type { AdminStudent, Resource } from '../../shared/schema';
+import type { HostMetrics as Host, Sample } from '../../../shared/metrics';
 import { request } from '@/lib/api';
-import { Empty, Feedback, Loading } from '@/components/common/feedback';
-import { Status } from '@/components/common/status';
 import { bytes } from '@/lib/format';
 import { ChartTooltip } from '@/components/common/chart-tooltip';
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Empty, Feedback, Loading } from '@/components/common/feedback';
 import { Card, CardAction, CardFooter, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack } from '@/components/ui/meter';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
 
 type Point = Record<string, number | null>;
 const charts = [
@@ -40,7 +31,6 @@ const charts = [
 ];
 const clock = (value: unknown) =>
   new Date(Number(value) * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-const memory = (mib: number) => (mib % 1024 ? mib + ' MiB' : mib / 1024 + ' GiB');
 
 function Trend({ points, chart }: { points: Point[]; chart: (typeof charts)[number] }) {
   return (
@@ -114,10 +104,11 @@ function Usage({
   );
 }
 
-function HostCards() {
+/** PVE host trend chart and capacity meters. */
+export function HostMetrics() {
   const status = useQuery({
     queryKey: ['host-status'],
-    queryFn: () => request<Sample<HostMetrics>>('admin/host/status'),
+    queryFn: () => request<Sample<Host>>('admin/host/status'),
     refetchInterval: 5000,
   });
   const history = useQuery({
@@ -211,141 +202,5 @@ function HostCards() {
         )}
       </Card>
     </div>
-  );
-}
-
-export function AdminOverview({
-  students,
-  resources,
-  attention,
-  registrationOpen,
-  onMachine,
-}: {
-  students: AdminStudent[];
-  resources: Resource[];
-  attention: number;
-  registrationOpen: boolean;
-  onMachine: (resource: Resource) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const names = new Map(students.map(student => [student.id, student.name]));
-  const keyword = search.trim().toLowerCase();
-  const visible = keyword
-    ? resources.filter(resource =>
-        [
-          resource.studentId,
-          names.get(resource.studentId) || '',
-          String(resource.vmid),
-          ...resource.networks.map(network => network.ip),
-        ].some(value => value.toLowerCase().includes(keyword)),
-      )
-    : resources;
-  const kpis = [
-    { label: '名单学生', value: students.length },
-    { label: '已认领', value: students.filter(student => student.claimed).length, of: students.length },
-    { label: '已分配实例', value: resources.length },
-    { label: '待处理任务', value: attention, warn: attention > 0 },
-  ];
-  return (
-    <>
-      {!registrationOpen && (
-        <Alert variant="info">
-          <Settings2 />
-          <AlertTitle>准备好后，再开放学生申请</AlertTitle>
-          <AlertDescription>依次完成 PVE 连接、系统模板、网络、默认资源配置。</AlertDescription>
-          <AlertAction>
-            <Button size="sm" variant="outline" render={<Link to="/admin/settings" />}>
-              配置平台 <ArrowUpRight />
-            </Button>
-          </AlertAction>
-        </Alert>
-      )}
-      <Card className="grid grid-cols-2 md:grid-cols-4 md:divide-x max-md:gap-y-4 max-md:py-4">
-        {kpis.map(kpi => (
-          <div key={kpi.label} className="px-6 md:py-5">
-            <div className="text-muted-foreground text-sm">{kpi.label}</div>
-            <div className={'mt-1 font-semibold text-2xl tabular-nums' + (kpi.warn ? ' text-warning-foreground' : '')}>
-              {kpi.value}
-              {kpi.of !== undefined && (
-                <span className="ms-1 font-normal text-base text-muted-foreground">/ {kpi.of}</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </Card>
-      <HostCards />
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b py-4">
-          <CardTitle render={<h2 />} className="row-span-2 h-full flex items-center">
-            实例
-          </CardTitle>
-          {resources.length > 0 && (
-            <CardAction>
-              <InputGroup className="w-48 sm:w-60">
-                <InputGroupInput
-                  aria-label="搜索实例"
-                  placeholder="学号、姓名、VMID 或 IP"
-                  value={search}
-                  onChange={event => setSearch(event.target.value)}
-                />
-                <InputGroupAddon>
-                  <Search />
-                </InputGroupAddon>
-              </InputGroup>
-            </CardAction>
-          )}
-        </CardHeader>
-        {visible.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>学生</TableHead>
-                <TableHead>实例</TableHead>
-                <TableHead>配置</TableHead>
-                <TableHead>内网 IP</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map(resource => (
-                <TableRow key={resource.id}>
-                  <TableCell>
-                    <div className="font-medium">{names.get(resource.studentId) || resource.studentId}</div>
-                    <div className="text-muted-foreground text-xs tabular-nums">{resource.studentId}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="tabular-nums">VMID {resource.vmid}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {resource.spec.distro} · {resource.networks.length} 网卡
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {resource.spec.cores} 核 · {memory(resource.spec.memory)} · {resource.spec.disk} GiB
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{resource.networks[0]?.ip ?? '—'}</TableCell>
-                  <TableCell>
-                    <Status state={resource.state} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => onMachine(resource)}>
-                      查看 <ArrowUpRight />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <CardPanel>
-            {resources.length ? (
-              <Empty title="没有匹配的实例" />
-            ) : (
-              <Empty title="第一台实例，将从这里开始">完成平台配置后，学生即可自行认领和创建。</Empty>
-            )}
-          </CardPanel>
-        )}
-      </Card>
-    </>
   );
 }

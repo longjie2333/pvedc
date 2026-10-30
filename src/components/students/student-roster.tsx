@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownToLine, ChevronDown, Ellipsis, Eye, EyeOff, Search, Upload, UserPlus, X } from 'lucide-react';
+import { ChevronDown, Ellipsis, Eye, EyeOff, Search, X } from 'lucide-react';
 import type { AdminStudent, Profile } from '../../../shared/schema';
 import { batchConfirmation, batchNames, type BatchAction, type BatchResult } from '../../../shared/batch';
-import { downloadFile, useCommand } from '@/lib/api';
+import { useCommand } from '@/lib/api';
 import { segmentedControlItemVariants, segmentedControlRootClassName } from '@/lib/segmented-control';
 import { Empty, Feedback } from '@/components/common/feedback';
 import { Modal } from '@/components/common/modal';
@@ -11,7 +11,6 @@ import { Status } from '@/components/common/status';
 import { TextField } from '@/components/common/form-fields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { HeaderActions, HeaderButton } from '@/components/app-shell';
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -27,17 +26,13 @@ const matchesFilter = (student: AdminStudent, filter: Filter) =>
 export function StudentRoster({
   students,
   profiles,
-  onAdd,
   onEdit,
   onMachine,
-  onImport,
 }: {
   students: AdminStudent[];
   profiles: Profile[];
-  onAdd: () => void;
   onEdit: (student: AdminStudent) => void;
   onMachine: (student: AdminStudent) => void;
-  onImport: () => void;
 }) {
   const [query, setQuery] = useState(''),
     [filter, setFilter] = useState<Filter>('all'),
@@ -80,17 +75,6 @@ export function StudentRoster({
     setRevealed(previous => (previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id]));
   return (
     <>
-      <HeaderActions>
-        <HeaderButton
-          type="button"
-          variant="outline"
-          icon={<ArrowDownToLine />}
-          label="导出"
-          onClick={() => downloadFile('admin/students/export', 'students.csv')}
-        />
-        <HeaderButton type="button" variant="outline" icon={<Upload />} label="导入名单" onClick={onImport} />
-        <HeaderButton type="button" icon={<UserPlus />} label="添加学生" onClick={onAdd} />
-      </HeaderActions>
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
           <RadioGroupPrimitive

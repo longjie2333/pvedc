@@ -1,37 +1,16 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { AuditRecord } from '../../shared/activity';
+import type { AuditRecord } from '../../../shared/activity';
 import { request } from '@/lib/api';
 import { useActivityRecords } from '@/lib/activity';
-import { ActivityFilters } from '@/components/activity/activity-filters';
-import { RecordPagination } from '@/components/common/record-pagination';
-import { TaskList } from '@/components/activity/task-list';
-import { Choice, TextField } from '@/components/common/form-fields';
-import { Empty, Feedback, Loading } from '@/components/common/feedback';
-import { Panel } from '@/components/common/panel';
 import { date } from '@/lib/format';
+import { ActivityFilters } from '@/components/activity/activity-filters';
+import { Empty, Feedback, Loading } from '@/components/common/feedback';
+import { Choice, TextField } from '@/components/common/form-fields';
+import { Panel } from '@/components/common/panel';
+import { RecordPagination } from '@/components/common/record-pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
 
-export function ActivityPage() {
-  const [tab, setTab] = useState('tasks');
-  return (
-    <Tabs value={tab} onValueChange={value => setTab(String(value))} className="gap-4">
-      <TabsList aria-label="记录类别">
-        <TabsTab value="tasks">任务记录</TabsTab>
-        <TabsTab value="audit">操作审计</TabsTab>
-      </TabsList>
-      <TabsPanel value="tasks" keepMounted>
-        <TaskList admin active={tab === 'tasks'} />
-      </TabsPanel>
-      <TabsPanel value="audit" keepMounted>
-        <AuditList active={tab === 'audit'} />
-      </TabsPanel>
-    </Tabs>
-  );
-}
-
-function AuditList({ active }: { active: boolean }) {
+export function AuditList({ active }: { active: boolean }) {
   const records = useActivityRecords<AuditRecord>('admin/audit', active),
     { query, draft, setFilter } = records;
   const actions = useQuery({

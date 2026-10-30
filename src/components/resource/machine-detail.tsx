@@ -26,7 +26,7 @@ import { Empty, Feedback } from '@/components/common/feedback';
 import { Modal } from '@/components/common/modal';
 import { Status } from '@/components/common/status';
 import { TextField } from '@/components/common/form-fields';
-import { bytes } from '@/lib/format';
+import { bytes, mebibytes } from '@/lib/format';
 import { ChartTooltip } from '@/components/common/chart-tooltip';
 import { request, useCommand } from '@/lib/api';
 
@@ -57,7 +57,6 @@ const names: Record<string, string> = {
 };
 const destructive = ['rebuild', 'reclaim'];
 const uptime = (seconds: number) => Math.floor(seconds / 86400) + ' 天 ' + (Math.floor(seconds / 3600) % 24) + ' 小时';
-const memory = (mib: number) => (mib % 1024 ? mib + ' MiB' : mib / 1024 + ' GiB');
 
 type Point = Record<string, number | null>;
 const rate = (n: number) =>
@@ -273,7 +272,7 @@ export function MachineDetail({
             <Fact
               label="规格"
               value={
-                resource.spec.cores + ' 核 · ' + memory(resource.spec.memory) + ' · ' + resource.spec.disk + ' GiB'
+                resource.spec.cores + ' 核 · ' + mebibytes(resource.spec.memory) + ' · ' + resource.spec.disk + ' GiB'
               }
             />
             <Fact label="内网 IP" value={resource.networks[0].ip} mono copy />
