@@ -113,6 +113,7 @@
 
 - 页面布局由路由决定：**不应** 用组件状态在同一页面里切换不同的页面布局（如 `page === 'x' &&`、`mode` 状态切换表单）。Tab 若对应页面级内容，Tab 值取自 URL，切换即导航。
 - 卡片的操作按钮由页面以 children 组合（如 `ProfileCard`、`NetworkCard`），**不** 为每种操作加布尔或回调 props。
+- 共享组件 **不** 按角色分支（如 `admin` 布尔值）。接口路径作为数据传入（`api`、`endpoint`），角色差异由调用方组合：额外的筛选项、行操作、卡片、头部按钮用 children 或 render prop 传入，操作需要的确认字段由调用方按操作声明（`MachineOperations`）。
 - 同一实体的编辑器按实体拆分（`StudentEditor`、`ProfileEditor`、`NetworkEditor`），共用 `EditorDialog` 外壳，**不** 用 `kind` 分支。
 - 跨页面共用的管理端查询放在 `src/lib/queries.ts`，各页面直接读缓存，**不** 经 props 层层传递。
 
@@ -396,7 +397,10 @@
 | 总览（KPI 条、Tabs 趋势图、不撑高行的 Meter 容量卡、可搜索表格） | `src/pages/admin/overview.tsx`、`src/components/host/host-metrics.tsx`、`src/components/resource/resource-table.tsx` |
 | 图表悬停提示 | `src/components/common/chart-tooltip.tsx` |
 | 列表页（Radio 筛选、批量操作条、行菜单、敏感值） | `src/pages/admin/students.tsx`、`src/components/students/student-roster.tsx` |
-| 实体卡、带迷你图的指标卡、状态驱动操作、容器查询 | `src/components/resource/machine-detail.tsx` |
+| 实体卡、带迷你图的指标卡、容器查询 | `src/components/resource/machine-detail.tsx` |
+| 状态驱动操作（电源组随实时状态变化、按操作声明确认字段） | `src/components/resource/machine-actions.tsx` |
+| 同一组件按角色组合（学生与管理员） | `src/pages/student/workspace.tsx`、`src/components/resource/machine-dialog.tsx`、`src/components/forward/*-forward-dialog.tsx` |
+| 分页记录列表（查询栏、表格或空状态、分页） | `src/components/activity/record-panel.tsx`、`src/pages/admin/activity.tsx`、`src/pages/student/tasks.tsx` |
 | 卡片网格页（操作以 children 组合） | `src/pages/admin/profiles.tsx`、`src/pages/admin/networks.tsx` |
 | 设置页与吸底保存（字段由数据声明） | `src/pages/admin/settings.tsx`、`src/components/settings/settings-form.tsx` |
 | URL 驱动的 Tabs（两个列表保持挂载） | `src/pages/admin/activity.tsx` |

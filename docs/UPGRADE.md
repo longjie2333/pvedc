@@ -57,6 +57,16 @@
 
 ## 后续实施注意
 
+### 2026-10-30 去掉共享组件的 admin 布尔参数（本地开发与测试）
+
+- 目标：`MachineDetail`、`ForwardPanel`、`TaskList` 用 `admin` 同时切换接口前缀、可见功能和请求字段（三个组件分别有 14、12、7 处引用），改为调用方组合。
+- 提交 `5c307fa`：`TaskList` 拆为 `RecordPanel`、`TaskFilters`、`TaskTable`，审计列表同样改用 `RecordPanel`；`ForwardPanel` 只保留规则表，添加转发拆为 `ForwardDialog` 外壳加学生、管理员两种组合；`MachineDetail` 只保留概要与指标，头部操作由 `MachineActions` 提供，各操作的确认字段由调用方声明，网络接口与监听端口拆为独立卡片。组件里不再有按角色的分支，路径作为数据传入。
+- 本地验证：`pnpm typecheck` 通过；`pnpm test` 通过（101 项 Vitest + 6 项 Python helper）；Playwright 15 项全部通过（端口选择、管理员端口表、任务分页与 Tab 状态、机器调整均在其中）。19 张截图与改造前比对：公网转发、平台设置的差异是 mock 服务器每次启动随机分配的 gost / PVE 端口，其余为实时图表数据，布局一致。
+- 未验证：未部署。
+- 评估（未实施）：`StudentRoster`（421 行、8 个 useState、12 个 hooks）与 `ResourceAdjust`（406 行、JSX 深度 11）仍是最大的两个组件，均已有 e2e 覆盖（名单批量流程、机器调整三条用例）。
+  - `StudentRoster`：批量操作条、批量确认弹窗、批量结果卡、重置认领弹窗各自持有状态和命令，可拆为独立组件；选中项用 `useEffect` 按筛选结果裁剪，可改为渲染时直接求交集，去掉该副作用；重置认领可复用 `ConfirmAction`。
+  - `ResourceAdjust`：网卡行初始化、校验、变更判断（决定是否先关机）、提交载荷是纯函数，可移出组件并补单元测试；单块网卡的编辑区可拆为受控组件；网桥选项映射与网络编辑器重复，可共用。
+
 ### 2026-10-30 前端结构重构：格式化、布局与路由页面分离、通用组件集中（本地开发与测试）
 
 - 目标：AI 迭代后前端出现上帝组件与按状态切换布局（`AdminPage` 按 `:page` 拼 9 个页面并集中 5 个弹窗状态，`CatalogEditor` 用 `kind` 分支 16 处并以 `as unknown as Record` 擦除类型，`AuthPage` 用 `mode` 状态切换 4 种入口）。要求格式化代码、页面布局与组件分离、每个路由一个页面、通用封装集中一个目录；渐进修改，不保留兼容层。
