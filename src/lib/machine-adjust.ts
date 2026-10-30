@@ -84,21 +84,26 @@ export function draftIssues(drafts: NicDraft[], bridges: string[] | undefined): 
   });
 }
 
+/** Mirrors the fields the server compares when it decides the network changed (`sameNetwork`). */
 function draftChanged(before: MachineNetwork | undefined, draft: NicDraft) {
   if (!before) return true;
+  // The MAC resolves the same way for pooled and custom NICs.
+  const macChanged =
+    draft.macMode === 'auto'
+      ? !!before.mac
+      : draft.macMode === 'set' && (before.mac || '').toUpperCase() !== draft.mac.toUpperCase();
+  if (macChanged) return true;
   if (draft.source === 'custom')
     return (
       before.networkId !== null ||
       before.bridge !== draft.bridge ||
+      before.cidr !== draft.cidr ||
       before.ip !== draft.ip ||
       (before.gateway || '') !== draft.gateway ||
       before.dns.join(',') !== addresses(draft.dns).join(',') ||
       (before.vlan ? String(before.vlan) : '') !== draft.vlan
     );
-  if (before.networkId !== draft.networkId) return true;
-  if (draft.macMode === 'auto') return !!before.mac;
-  if (draft.macMode === 'set') return (before.mac || '').toUpperCase() !== draft.mac.toUpperCase();
-  return false;
+  return before.networkId !== draft.networkId;
 }
 
 /** Whether applying the drafts changes the machine's network; a running machine must then shut down first. */

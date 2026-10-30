@@ -145,4 +145,12 @@ describe('networksChanged', () => {
     expect(networksChanged(machine, [primary, { ...secondary, vlan: '' }])).toBe(true);
     expect(networksChanged(machine, [primary, { ...secondary, source: 'existing', networkId: 'lab' }])).toBe(true);
   });
+
+  // The server compares every resolved field (sameNetwork in server/lib/adjust.ts), so these must ask
+  // for the shutdown confirmation too, or a running machine's save is rejected with 409.
+  it('treats a custom NIC subnet or MAC change as a network change like the server does', () => {
+    expect(networksChanged(machine, [primary, { ...secondary, cidr: '192.168.10.0/25' }])).toBe(true);
+    expect(networksChanged(machine, [primary, { ...secondary, macMode: 'set', mac: '{{MAC_6ixglbre}}' }])).toBe(true);
+    expect(networksChanged(machine, [primary, { ...secondary, macMode: 'auto' }])).toBe(false);
+  });
 });
