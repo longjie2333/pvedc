@@ -396,7 +396,7 @@
 | 登录页（品牌面板、路由驱动的 Tabs 入口） | `src/layouts/auth-layout.tsx`、`src/pages/auth/*.tsx`、`src/components/auth/student-auth-tabs.tsx` |
 | 总览（KPI 条、Tabs 趋势图、不撑高行的 Meter 容量卡、可搜索表格） | `src/pages/admin/overview.tsx`、`src/components/host/host-metrics.tsx`、`src/components/resource/resource-table.tsx` |
 | 图表悬停提示 | `src/components/common/chart-tooltip.tsx` |
-| 列表页（Radio 筛选、批量操作条、行菜单、敏感值） | `src/pages/admin/students.tsx`、`src/components/students/student-roster.tsx` |
+| 列表页（Radio 筛选、批量操作条、行菜单、敏感值） | `src/pages/admin/students.tsx`、`src/components/students/*.tsx` |
 | 实体卡、带迷你图的指标卡、容器查询 | `src/components/resource/machine-detail.tsx` |
 | 状态驱动操作（电源组随实时状态变化、按操作声明确认字段） | `src/components/resource/machine-actions.tsx` |
 | 同一组件按角色组合（学生与管理员） | `src/pages/student/workspace.tsx`、`src/components/resource/machine-dialog.tsx`、`src/components/forward/*-forward-dialog.tsx` |
@@ -405,7 +405,7 @@
 | 设置页与吸底保存（字段由数据声明） | `src/pages/admin/settings.tsx`、`src/components/settings/settings-form.tsx` |
 | URL 驱动的 Tabs（两个列表保持挂载） | `src/pages/admin/activity.tsx` |
 | 列表 + 编辑区 | `src/pages/admin/guides.tsx`、`src/components/guides/*.tsx` |
-| 分组编辑弹窗、可增删行 | `src/components/catalog/*-editor.tsx`、`src/components/resource/resource-adjust.tsx` |
+| 分组编辑弹窗、可增删行（列表逻辑为纯函数，见 `src/lib/machine-adjust.ts`） | `src/components/catalog/*-editor.tsx`、`src/components/resource/resource-adjust.tsx`、`src/components/resource/nic-editor.tsx` |
 | 共享原语封装 | `src/components/common/*.tsx` |
 | 引导信息置顶 | `src/components/guides/student-guides.tsx`、`src/pages/student/workspace.tsx` |
 | 浏览器验收写法 | `tests/browser/*.spec.ts` |

@@ -57,15 +57,21 @@
 
 ## 后续实施注意
 
+### 2026-10-30 拆分学生名单与机器调整，修复自定义网卡改动未提示关机（本地开发与测试）
+
+- 提交 `f6ed406`：`StudentRoster` 拆为 `StudentTable`（行与选择框，行菜单由调用方组合）、`BatchToolbar`、`BatchDialog`、`BatchResultCard`，各自持有命令与状态；选中项改为渲染时与当前筛选结果求交集，去掉按筛选结果裁剪选中项的 `useEffect`；重置认领改用 `ConfirmAction`（新增 `confirmLabel`）。新增 e2e `roster.spec.ts`（行菜单重置认领、单行删除确认短语与受理结果）。
+- 提交 `a449f71`：`ResourceAdjust` 的网卡草稿初始化、增删排序、校验、网络改动判断与提交载荷移到 `src/lib/machine-adjust.ts`；单块网卡编辑区拆为 `NicEditor`；网桥选项与带刷新的选择框抽为 `useBridgeOptions` / `BridgeField`，网络编辑器共用。新增 `tests/machine-adjust.test.ts` 9 项。行为不变。
+- 补测试时发现的缺陷（提交 `6fde69a`）：前端判断网络是否改动时，自定义网卡没有比较子网 CIDR，MAC 也只在使用地址池的网卡上比较；服务端 `sameNetwork`（`server/lib/adjust.ts`）比较全部字段。运行中的机器只改自定义网卡的子网或 MAC 时，前端不弹关机确认就提交，服务端返回 409「调整网络需要先关机」。先写失败用例再修复，现与服务端一致；新增单元测试 1 项。仅有单元测试覆盖，现有 e2e 的 mock 机器没有自定义网卡。
+- 本地验证：`pnpm typecheck` 通过；`pnpm test` 通过（22 个文件 111 项 Vitest + 6 项 Python helper）；Playwright 16 项全部通过。19 张截图与改造前比对，差异仍只来自 mock 服务器随机端口与实时图表数据。
+- 未验证：未部署；自定义网卡改子网或 MAC 的真实 PVE 流程未联调。
+
 ### 2026-10-30 去掉共享组件的 admin 布尔参数（本地开发与测试）
 
 - 目标：`MachineDetail`、`ForwardPanel`、`TaskList` 用 `admin` 同时切换接口前缀、可见功能和请求字段（三个组件分别有 14、12、7 处引用），改为调用方组合。
 - 提交 `5c307fa`：`TaskList` 拆为 `RecordPanel`、`TaskFilters`、`TaskTable`，审计列表同样改用 `RecordPanel`；`ForwardPanel` 只保留规则表，添加转发拆为 `ForwardDialog` 外壳加学生、管理员两种组合；`MachineDetail` 只保留概要与指标，头部操作由 `MachineActions` 提供，各操作的确认字段由调用方声明，网络接口与监听端口拆为独立卡片。组件里不再有按角色的分支，路径作为数据传入。
 - 本地验证：`pnpm typecheck` 通过；`pnpm test` 通过（101 项 Vitest + 6 项 Python helper）；Playwright 15 项全部通过（端口选择、管理员端口表、任务分页与 Tab 状态、机器调整均在其中）。19 张截图与改造前比对：公网转发、平台设置的差异是 mock 服务器每次启动随机分配的 gost / PVE 端口，其余为实时图表数据，布局一致。
 - 未验证：未部署。
-- 评估（未实施）：`StudentRoster`（421 行、8 个 useState、12 个 hooks）与 `ResourceAdjust`（406 行、JSX 深度 11）仍是最大的两个组件，均已有 e2e 覆盖（名单批量流程、机器调整三条用例）。
-  - `StudentRoster`：批量操作条、批量确认弹窗、批量结果卡、重置认领弹窗各自持有状态和命令，可拆为独立组件；选中项用 `useEffect` 按筛选结果裁剪，可改为渲染时直接求交集，去掉该副作用；重置认领可复用 `ConfirmAction`。
-  - `ResourceAdjust`：网卡行初始化、校验、变更判断（决定是否先关机）、提交载荷是纯函数，可移出组件并补单元测试；单块网卡的编辑区可拆为受控组件；网桥选项映射与网络编辑器重复，可共用。
+- 评估：`StudentRoster`（421 行、8 个 useState、12 个 hooks）与 `ResourceAdjust`（406 行、JSX 深度 11）仍是最大的两个组件，已在上一条（更新的）记录中拆分。
 
 ### 2026-10-30 前端结构重构：格式化、布局与路由页面分离、通用组件集中（本地开发与测试）
 
