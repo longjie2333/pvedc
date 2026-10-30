@@ -1,34 +1,16 @@
 import { copyText } from '@/lib/feedback';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
-import {
-  ArrowDown,
-  ArrowDownToLine,
-  ArrowUp,
-  Copy,
-  Ellipsis,
-  KeyRound,
-  Power,
-  PowerOff,
-  RotateCw,
-  Settings2,
-  Trash2,
-} from 'lucide-react';
-import type { Forward, ListeningPort, Resource } from '../../../shared/schema';
+import { ArrowDown, ArrowUp, Copy } from 'lucide-react';
+import type { Forward, Resource } from '../../../shared/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardDescription, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
-import { Form } from '@/components/ui/form';
-import { Group, GroupSeparator } from '@/components/ui/group';
-import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Empty, Feedback } from '@/components/common/feedback';
-import { Modal } from '@/components/common/modal';
+import { Feedback } from '@/components/common/feedback';
 import { Status } from '@/components/common/status';
-import { TextField } from '@/components/common/form-fields';
 import { bytes, mebibytes } from '@/lib/format';
 import { ChartTooltip } from '@/components/common/chart-tooltip';
-import { request, useCommand } from '@/lib/api';
+import { request } from '@/lib/api';
 
 interface Sample<T> {
   data: T | null;
@@ -47,15 +29,6 @@ interface Metrics {
   netout: number;
   uptime: number;
 }
-const names: Record<string, string> = {
-  start: '启动',
-  shutdown: '关机',
-  reboot: '重启',
-  password: '修改密码',
-  rebuild: '重建',
-  reclaim: '回收',
-};
-const destructive = ['rebuild', 'reclaim'];
 const uptime = (seconds: number) => Math.floor(seconds / 86400) + ' 天 ' + (Math.floor(seconds / 3600) % 24) + ' 小时';
 
 type Point = Record<string, number | null>;
@@ -149,40 +122,37 @@ function Fact({ label, value, mono, copy }: { label: string; value: string; mono
   );
 }
 
+/**
+ * Machine summary and last-hour metrics read from `api` (`me` or `admin/resources/:id`).
+ * `actions` renders the header actions for the live power state; `children` adds cards below.
+ */
 export function MachineDetail({
   resource,
-  admin = false,
-  forwards = [],
-  publicHost = '',
-  onAdjust,
+  api,
+  forwards,
+  publicHost,
+  actions,
+  children,
 }: {
   resource: Resource;
-  admin?: boolean;
-  forwards?: Forward[];
-  publicHost?: string;
-  onAdjust?: () => void;
+  api: string;
+  forwards: Forward[];
+  publicHost: string;
+  actions: (status?: string) => ReactNode;
+  children?: ReactNode;
 }) {
-  const prefix = admin ? 'admin/resources/' + resource.id : 'me';
   const status = useQuery({
     queryKey: ['machine-status', resource.id],
-    queryFn: () => request<Sample<Metrics>>(prefix + '/status'),
+    queryFn: () => request<Sample<Metrics>>(api + '/status'),
     enabled: resource.state === 'ready',
     refetchInterval: 5000,
   });
-  const ports = useQuery({
-    queryKey: ['machine-ports', resource.id],
-    queryFn: () => request<Sample<ListeningPort[]>>(prefix + '/ports'),
-    enabled: admin && resource.state === 'ready',
-    refetchInterval: admin ? 15000 : false,
-  });
   const history = useQuery({
     queryKey: ['machine-history', resource.id],
-    queryFn: () => request<Sample<Record<string, number>[]>>(prefix + '/history'),
+    queryFn: () => request<Sample<Record<string, number>[]>>(api + '/history'),
     enabled: resource.state === 'ready',
     refetchInterval: 60000,
   });
-  const command = useCommand(),
-    [action, setAction] = useState('');
   const m = resource.state === 'ready' ? status.data?.data : undefined;
   const ssh = forwards.find(rule => rule.protocol === 'tcp' && rule.targetPort === 22 && rule.enabled);
   const points: Point[] =
@@ -196,20 +166,6 @@ export function MachineDetail({
           netout: numeric(point.netout),
         })) ?? [])
       : [];
-  const power =
-    m?.status === 'running'
-      ? ['shutdown', 'reboot']
-      : m?.status === 'stopped'
-        ? ['start']
-        : ['start', 'shutdown', 'reboot'];
-  async function perform(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const result = await command.run(
-      admin ? 'admin/resources/' + resource.id + '/' + action : 'me/resource/' + action,
-      Object.fromEntries(new FormData(event.currentTarget)),
-    );
-    if (result) setAction('');
-  }
   return (
     <div className="@container flex flex-col gap-6">
       <Card>
@@ -223,47 +179,7 @@ export function MachineDetail({
             {m?.status === 'running' ? ' · 已运行 ' + uptime(m.uptime) : ''}
           </CardDescription>
           <CardAction className="flex gap-2 @max-md:col-start-1 @max-md:row-span-1 @max-md:row-start-auto @max-md:mt-3 @max-md:justify-self-start">
-            <Group aria-label="电源">
-              {power.map((key, index) => [
-                index > 0 && <GroupSeparator key={key + '-separator'} />,
-                <Button key={key} variant="outline" onClick={() => setAction(key)}>
-                  {key === 'start' ? <Power /> : key === 'shutdown' ? <PowerOff /> : <RotateCw />}
-                  {names[key]}
-                </Button>,
-              ])}
-            </Group>
-            {admin && (
-              <Button
-                variant="outline"
-                disabled={!['ready', 'failed', 'reserved'].includes(resource.state)}
-                onClick={onAdjust}
-              >
-                <Settings2 />
-                调整配置
-              </Button>
-            )}
-            <Menu>
-              <MenuTrigger render={<Button variant="outline" size="icon" aria-label="更多操作" />}>
-                <Ellipsis />
-              </MenuTrigger>
-              <MenuPopup align="end">
-                <MenuItem onClick={() => setAction('password')}>
-                  <KeyRound />
-                  {names.password}
-                </MenuItem>
-                <MenuSeparator />
-                <MenuItem variant="destructive" onClick={() => setAction('rebuild')}>
-                  <Trash2 />
-                  {names.rebuild}
-                </MenuItem>
-                {admin && (
-                  <MenuItem variant="destructive" onClick={() => setAction('reclaim')}>
-                    <ArrowDownToLine />
-                    {names.reclaim}
-                  </MenuItem>
-                )}
-              </MenuPopup>
-            </Menu>
+            {actions(m?.status)}
           </CardAction>
         </CardHeader>
         <CardPanel className="flex flex-col gap-4">
@@ -355,124 +271,7 @@ export function MachineDetail({
           format={rate}
         />
       </div>
-      {(admin || resource.networks.length > 1) && (
-        <Card>
-          <CardHeader>
-            <CardTitle render={<h2 />}>网络接口</CardTitle>
-          </CardHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>网卡</TableHead>
-                <TableHead>网络</TableHead>
-                <TableHead>地址</TableHead>
-                <TableHead>MAC 地址</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {resource.networks.map(entry => (
-                <TableRow key={entry.iface}>
-                  <TableCell className="font-mono text-xs">{entry.iface}</TableCell>
-                  <TableCell>
-                    <div>{entry.name}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {entry.bridge}
-                      {entry.vlan ? ' · VLAN ' + entry.vlan : ''}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-mono text-xs">{entry.ip}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {entry.cidr}
-                      {entry.gateway ? ' · 网关 ' + entry.gateway : ''}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{entry.mac || '由 PVE 分配'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
-      {admin && (
-        <Card>
-          <CardHeader>
-            <CardTitle render={<h2 />}>系统监听端口</CardTitle>
-            {ports.data?.updatedAt && (
-              <CardAction className="text-muted-foreground text-xs tabular-nums">
-                {new Date(ports.data.updatedAt).toLocaleTimeString('zh-CN')}
-              </CardAction>
-            )}
-          </CardHeader>
-          {(ports.data?.error || ports.error) && (
-            <div className="px-6">
-              <Feedback error={ports.data?.error || ports.error?.message} />
-            </div>
-          )}
-          {resource.state === 'ready' && ports.data?.data?.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>协议</TableHead>
-                  <TableHead>监听地址</TableHead>
-                  <TableHead>端口</TableHead>
-                  <TableHead>进程</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ports.data.data.map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{p.protocol.toUpperCase()}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.address}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.port}</TableCell>
-                    <TableCell>
-                      {p.processes.map(process => process.name + ' · ' + process.pid).join(', ') || '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <CardPanel>
-              <Empty title="暂无监听端口" />
-            </CardPanel>
-          )}
-        </Card>
-      )}
-      <Modal
-        destructive={destructive.includes(action)}
-        open={!!action}
-        onClose={() => setAction('')}
-        title={(names[action] || '') + '容器'}
-        description={
-          destructive.includes(action)
-            ? '此操作将永久清空系统盘数据。重建保留规格、IP 和转发规则；回收则释放资源。'
-            : '操作将以后台任务执行，可在任务列表查看结果。'
-        }
-        footer={
-          <Button
-            type="submit"
-            form="resource-action"
-            loading={command.pending}
-            variant={destructive.includes(action) ? 'destructive' : 'default'}
-          >
-            确认{names[action]}
-          </Button>
-        }
-      >
-        <Form id="resource-action" className="flex flex-col gap-4" onSubmit={perform}>
-          <Feedback error={command.error} />
-          {destructive.includes(action) && (
-            <TextField label={'输入学号 ' + resource.studentId + ' 以确认'} name="confirmation" required />
-          )}
-          {['password', 'rebuild'].includes(action) && !admin && (
-            <TextField label="当前平台密码" name="password" type="password" required minLength={10} />
-          )}
-          {(action === 'password' || (action === 'rebuild' && admin)) && (
-            <TextField label="新的平台和 root 密码" name="newPassword" type="password" required minLength={10} />
-          )}
-        </Form>
-      </Modal>
+      {children}
     </div>
   );
 }

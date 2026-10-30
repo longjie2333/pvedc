@@ -3,11 +3,8 @@ import type { AuditRecord } from '../../../shared/activity';
 import { request } from '@/lib/api';
 import { useActivityRecords } from '@/lib/activity';
 import { date } from '@/lib/format';
-import { ActivityFilters } from '@/components/activity/activity-filters';
-import { Empty, Feedback, Loading } from '@/components/common/feedback';
+import { RecordPanel } from '@/components/activity/record-panel';
 import { Choice, TextField } from '@/components/common/form-fields';
-import { Panel } from '@/components/common/panel';
-import { RecordPagination } from '@/components/common/record-pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export function AuditList({ active }: { active: boolean }) {
@@ -19,34 +16,34 @@ export function AuditList({ active }: { active: boolean }) {
     enabled: active,
   });
   return (
-    <Panel>
-      <ActivityFilters
-        {...records}
-        loading={query.isFetching}
-        refresh={() => {
-          void query.refetch();
-          void actions.refetch();
-        }}
-      >
-        <TextField
-          label="操作者"
-          value={draft.actor || ''}
-          onChange={event => setFilter('actor', event.target.value)}
-        />
-        <Choice
-          label="操作类型"
-          value={draft.action || ''}
-          onChange={value => setFilter('action', value)}
-          items={[
-            { value: '', label: '全部操作' },
-            ...(actions.data || []).map(item => ({ value: item.action, label: item.action })),
-          ]}
-        />
-      </ActivityFilters>
-      <Feedback error={query.error?.message || actions.error?.message} />
-      {query.isPending ? (
-        <Loading />
-      ) : query.data?.items.length ? (
+    <RecordPanel
+      records={records}
+      refresh={() => {
+        void query.refetch();
+        void actions.refetch();
+      }}
+      error={actions.error?.message}
+      emptyTitle="没有匹配的审计记录"
+      filters={
+        <>
+          <TextField
+            label="操作者"
+            value={draft.actor || ''}
+            onChange={event => setFilter('actor', event.target.value)}
+          />
+          <Choice
+            label="操作类型"
+            value={draft.action || ''}
+            onChange={value => setFilter('action', value)}
+            items={[
+              { value: '', label: '全部操作' },
+              ...(actions.data || []).map(item => ({ value: item.action, label: item.action })),
+            ]}
+          />
+        </>
+      }
+    >
+      {items => (
         <Table>
           <TableHeader>
             <TableRow>
@@ -57,7 +54,7 @@ export function AuditList({ active }: { active: boolean }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {query.data.items.map(item => (
+            {items.map(item => (
               <TableRow key={item.id}>
                 <TableCell>{item.actor}</TableCell>
                 <TableCell>{item.action}</TableCell>
@@ -70,10 +67,7 @@ export function AuditList({ active }: { active: boolean }) {
             ))}
           </TableBody>
         </Table>
-      ) : (
-        <Empty title="没有匹配的审计记录" />
       )}
-      <RecordPagination {...records} total={query.data?.total || 0} loading={query.isFetching} />
-    </Panel>
+    </RecordPanel>
   );
 }

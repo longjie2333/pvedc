@@ -54,7 +54,7 @@ export function ForwardingPage() {
           </Button>
         }
       />
-      <ForwardPanel admin rules={overview.data.forwards} publicHost={settings.data.publicHost || ''} />
+      <ForwardPanel api="admin/forwards" rules={overview.data.forwards} publicHost={settings.data.publicHost || ''} />
     </>
   );
 }

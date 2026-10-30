@@ -1,10 +1,23 @@
 import { useState } from 'react';
+import { Settings2 } from 'lucide-react';
 import type { Resource } from '../../../shared/schema';
 import { useAdminOverview, useSettings } from '@/lib/queries';
 import { Modal } from '@/components/common/modal';
+import { AdminForwardDialog } from '@/components/forward/admin-forward-dialog';
 import { ForwardPanel } from '@/components/forward/forward-panel';
+import { Button } from '@/components/ui/button';
+import { ListeningPorts } from './listening-ports';
+import { MachineActions, type MachineOperations } from './machine-actions';
 import { MachineDetail } from './machine-detail';
+import { NetworkInterfaces } from './network-interfaces';
 import { ResourceAdjust } from './resource-adjust';
+
+// Administrators set a new password directly and may reclaim the machine.
+const operations: MachineOperations = {
+  password: ['newPassword'],
+  rebuild: ['confirmation', 'newPassword'],
+  reclaim: ['confirmation'],
+};
 
 /** Administrator view of one student's machine, including the adjust flow it opens. */
 export function MachineDialog({ resource, onClose }: { resource?: Resource; onClose: () => void }) {
@@ -19,16 +32,40 @@ export function MachineDialog({ resource, onClose }: { resource?: Resource; onCl
         {resource && (
           <div className="grid gap-6">
             <MachineDetail
-              admin
               resource={resource}
+              api={'admin/resources/' + resource.id}
               forwards={forwards}
               publicHost={publicHost}
-              onAdjust={() => {
-                setAdjusting(resource);
-                onClose();
-              }}
+              actions={status => (
+                <MachineActions
+                  resource={resource}
+                  status={status}
+                  endpoint={action => 'admin/resources/' + resource.id + '/' + action}
+                  operations={operations}
+                >
+                  <Button
+                    variant="outline"
+                    disabled={!['ready', 'failed', 'reserved'].includes(resource.state)}
+                    onClick={() => {
+                      setAdjusting(resource);
+                      onClose();
+                    }}
+                  >
+                    <Settings2 />
+                    调整配置
+                  </Button>
+                </MachineActions>
+              )}
+            >
+              <NetworkInterfaces resource={resource} />
+              <ListeningPorts resource={resource} />
+            </MachineDetail>
+            <ForwardPanel
+              api="admin/forwards"
+              rules={forwards}
+              publicHost={publicHost}
+              action={<AdminForwardDialog resource={resource} />}
             />
-            <ForwardPanel admin resource={resource} rules={forwards} publicHost={publicHost} />
           </div>
         )}
       </Modal>
