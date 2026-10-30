@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import type { Actor } from '../../shared/schema';
 import { StudentLayout } from '@/layouts/student-layout';
+import { ReturnTo } from './return-path';
 import { StudentTasksPage } from '@/pages/student/tasks';
 import { WorkspacePage } from '@/pages/student/workspace';
 
@@ -12,7 +13,7 @@ export function StudentRoutes({ title, actor }: { title: string; actor: Actor })
         <Route path="workspace" element={<WorkspacePage studentId={actor.sub} />} />
         <Route path="tasks" element={<StudentTasksPage />} />
       </Route>
-      <Route path="*" element={<Navigate replace to="/student/workspace" />} />
+      <Route path="*" element={<ReturnTo area="/student/" fallback="/student/workspace" />} />
     </Routes>
   );
 }

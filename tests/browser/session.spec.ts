@@ -95,3 +95,40 @@ test('refreshes proactively before the access deadline', async ({ page }) => {
   await expect.poll(() => refreshes).toBe(1);
   await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
 });
+
+test('sign-in pages are routes and a protected deep link survives login', async ({ page }) => {
+  let actor: { role: string; sub: string; sessionId: string } | null = null;
+  await page.route('**/api/auth/session', route =>
+    route.fulfill({
+      json: { actor, initialized: true, title: '路由测试', expiresAt: Math.floor(Date.now() / 1000) + 3600 },
+    }),
+  );
+  await page.route('**/api/auth/admin', route => {
+    actor = { role: 'admin', sub: 'admin', sessionId: 'route-session' };
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.route('**/api/public/roster?*', route =>
+    route.fulfill({ json: { open: true, selfSelection: false, profiles: [], defaultProfileId: '', students: [] } }),
+  );
+  await page.route('**/api/admin/**', route =>
+    route.fulfill({
+      json: route.request().url().endsWith('/overview')
+        ? { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] }
+        : {},
+    }),
+  );
+  await page.goto('/admin/students');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('tab', { name: '登录', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: '首次认领', exact: true }).click();
+  await expect(page).toHaveURL(/\/claim$/);
+  await expect(page.getByRole('heading', { name: '认领我的计算资源' })).toBeVisible();
+  await page.goto('/claim');
+  await expect(page.getByRole('tab', { name: '首次认领', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.goto('/admin/students');
+  await page.getByRole('button', { name: '管理员登录' }).click();
+  await expect(page).toHaveURL(/\/login\/admin$/);
+  await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill('123456');
+  await expect(page).toHaveURL(/\/admin\/students$/);
+  await expect(page.getByRole('heading', { name: '学生名单', exact: true })).toBeVisible();
+});

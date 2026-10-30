@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from '@/layouts/admin-layout';
+import { ReturnTo } from './return-path';
 import { ActivityPage } from '@/pages/admin/activity';
 import { ForwardingPage } from '@/pages/admin/forwarding';
 import { GuidesPage } from '@/pages/admin/guides';
@@ -29,7 +30,7 @@ export function AdminRoutes({ title }: { title: string }) {
         </Route>
         <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route path="*" element={<Navigate replace to="/admin/overview" />} />
+      <Route path="*" element={<ReturnTo area="/admin/" fallback="/admin/overview" />} />
     </Routes>
   );
 }

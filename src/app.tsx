@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import type { Actor } from '../shared/schema';
 import { refreshBrowserSession, request } from '@/lib/api';
 import { Feedback, Loading } from '@/components/common/feedback';
-import { AuthPage } from '@/pages/auth';
+import { AuthRoutes } from '@/routes/auth-routes';
 import { ToastProvider } from '@/components/ui/toast';
 import { TaskNotifications } from '@/components/activity/task-notifications';
 
@@ -57,7 +57,7 @@ function Application() {
   }, [session.data?.actor?.sessionId, session.data?.expiresAt]);
   if (session.isPending) return <Loading />;
   if (session.error) return <Feedback error={session.error.message} />;
-  if (!session.data.actor) return <AuthPage initialized={session.data.initialized} title={session.data.title} />;
+  if (!session.data.actor) return <AuthRoutes initialized={session.data.initialized} title={session.data.title} />;
   const { actor, title } = session.data;
   return (
     <Suspense fallback={<Loading />}>
