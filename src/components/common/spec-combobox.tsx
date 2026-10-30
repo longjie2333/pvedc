@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Field, FieldError, FieldLabel } from './ui/field';
-import { Combobox, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopup } from './ui/combobox';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Combobox, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopup } from '@/components/ui/combobox';
 
 export function SpecCombobox({
   name,

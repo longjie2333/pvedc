@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { PageResult } from '../../shared/activity';
-import { request } from './api';
+import { request } from '@/lib/api';
 
 export function useActivityRecords<T>(path: string, enabled: boolean) {
   const [page, setPage] = useState(1),

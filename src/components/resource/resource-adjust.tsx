@@ -1,15 +1,17 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import type { BridgeOption } from '../../shared/pve-options';
-import type { Network, Resource } from '../../shared/schema';
+import type { BridgeOption } from '../../../shared/pve-options';
+import type { Network, Resource } from '../../../shared/schema';
 import { request, useCommand } from '@/lib/api';
-import { Choice, Feedback, FormSection, Modal, TextField } from '@/components/common';
+import { Choice, FormSection, TextField } from '@/components/common/form-fields';
+import { Feedback } from '@/components/common/feedback';
+import { Modal } from '@/components/common/modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
-import { SpecCombobox } from '@/components/spec-combobox';
+import { SpecCombobox } from '@/components/common/spec-combobox';
 
 type MacMode = 'keep' | 'set' | 'auto';
 interface Row {

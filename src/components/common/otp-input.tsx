@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Field, FieldError, FieldLabel } from './ui/field';
-import { OTPField, OTPFieldInput } from './ui/otp-field';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { OTPField, OTPFieldInput } from '@/components/ui/otp-field';
 
 export function OtpInput({
   label = '动态验证码',

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { commandFeedback } from './feedback';
+import { commandFeedback } from '@/lib/feedback';
 import { toastManager } from '@/components/ui/toast';
 
 let refreshing: Promise<boolean> | undefined;

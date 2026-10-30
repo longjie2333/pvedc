@@ -6,16 +6,18 @@ import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, X
 import type { HostMetrics, Sample } from '../../shared/metrics';
 import type { AdminStudent, Resource } from '../../shared/schema';
 import { request } from '@/lib/api';
-import { Empty, Feedback, Loading, Status, bytes } from './common';
-import { ChartTooltip } from './chart-tooltip';
-import { Alert, AlertAction, AlertDescription, AlertTitle } from './ui/alert';
-import { Button } from './ui/button';
-import { Card, CardAction, CardFooter, CardHeader, CardPanel, CardTitle } from './ui/card';
-import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
-import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './ui/meter';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Tabs, TabsList, TabsPanel, TabsTab } from './ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area.tsx';
+import { Empty, Feedback, Loading } from '@/components/common/feedback';
+import { Status } from '@/components/common/status';
+import { bytes } from '@/lib/format';
+import { ChartTooltip } from '@/components/common/chart-tooltip';
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardFooter, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Meter, MeterIndicator, MeterLabel, MeterTrack } from '@/components/ui/meter';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type Point = Record<string, number | null>;
 const charts = [

@@ -2,15 +2,15 @@ import { lazy, Suspense, useEffect } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import type { Actor } from '../shared/schema';
-import { refreshBrowserSession, request } from './lib/api';
-import { Feedback, Loading } from './components/common';
-import { AdminShell, StudentShell } from './components/app-shell';
-import { AuthPage } from './pages/auth';
-import { ToastProvider } from './components/ui/toast';
-import { TaskNotifications } from './components/task-notifications';
-const AdminPage = lazy(() => import('./pages/admin').then(module => ({ default: module.AdminPage })));
-const StudentPage = lazy(() => import('./pages/student').then(module => ({ default: module.StudentPage })));
-const StudentTasksPage = lazy(() => import('./pages/student').then(module => ({ default: module.StudentTasksPage })));
+import { refreshBrowserSession, request } from '@/lib/api';
+import { Feedback, Loading } from '@/components/common/feedback';
+import { AdminShell, StudentShell } from '@/components/app-shell';
+import { AuthPage } from '@/pages/auth';
+import { ToastProvider } from '@/components/ui/toast';
+import { TaskNotifications } from '@/components/activity/task-notifications';
+const AdminPage = lazy(() => import('@/pages/admin').then(module => ({ default: module.AdminPage })));
+const StudentPage = lazy(() => import('@/pages/student').then(module => ({ default: module.StudentPage })));
+const StudentTasksPage = lazy(() => import('@/pages/student').then(module => ({ default: module.StudentTasksPage })));
 
 const client = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 2000 } },

@@ -1,14 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import type { AdminStudent, Network, Profile } from '../../shared/schema';
-import type { BridgeOption, StorageOption, TemplateOption } from '../../shared/pve-options';
+import type { AdminStudent, Network, Profile } from '../../../shared/schema';
+import type { BridgeOption, StorageOption, TemplateOption } from '../../../shared/pve-options';
 import { request, useCommand } from '@/lib/api';
-import { Choice, Feedback, FormSection, Modal, TextField } from '@/components/common';
+import { Choice, FormSection, TextField } from '@/components/common/form-fields';
+import { Feedback } from '@/components/common/feedback';
+import { Modal } from '@/components/common/modal';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
-import { SpecCombobox } from '@/components/spec-combobox';
-import { SwitchSetting } from '@/components/switch-setting';
+import { SpecCombobox } from '@/components/common/spec-combobox';
+import { SwitchSetting } from '@/components/common/switch-setting';
 import { Input } from '@/components/ui/input';
 
 type InitialForwardDraft = { protocol: 'tcp' | 'udp'; targetPort: string; publicPort: string; note: string };

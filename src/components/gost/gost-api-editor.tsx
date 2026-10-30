@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import type { SafeSettings } from '../../shared/schema';
+import type { SafeSettings } from '../../../shared/schema';
 import { useCommand } from '@/lib/api';
-import { Feedback, Panel, TextField } from './common';
-import { Form } from './ui/form';
-import { Button } from './ui/button';
-import { GostCredentials } from './gost-credentials';
+import { Feedback } from '@/components/common/feedback';
+import { Panel } from '@/components/common/panel';
+import { TextField } from '@/components/common/form-fields';
+import { Form } from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { GostCredentials } from '@/components/gost/gost-credentials';
 
 export function GostApiEditor({ initial, revision }: { initial: SafeSettings; revision: number }) {
   const [values, setValues] = useState({ gostApi: initial.gostApi, gostUser: initial.gostUser, gostPassword: '' });

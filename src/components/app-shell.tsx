@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { Actor } from '../../shared/schema';
 import { request, useCommand } from '@/lib/api';
-import { Button } from './ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -26,8 +26,8 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from './ui/breadcrumb';
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from './ui/menu';
+} from '@/components/ui/breadcrumb';
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from '@/components/ui/menu';
 import {
   Sidebar,
   SidebarContent,
@@ -43,7 +43,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
-} from './ui/sidebar';
+} from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
 export const adminNavigation = [

@@ -3,10 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import type { AuditRecord } from '../../shared/activity';
 import { request } from '@/lib/api';
 import { useActivityRecords } from '@/lib/activity';
-import { ActivityFilters } from '@/components/activity-filters';
-import { RecordPagination } from '@/components/record-pagination';
-import { TaskList } from '@/components/task-list';
-import { Choice, Empty, Feedback, Loading, Panel, TextField, date } from '@/components/common';
+import { ActivityFilters } from '@/components/activity/activity-filters';
+import { RecordPagination } from '@/components/common/record-pagination';
+import { TaskList } from '@/components/activity/task-list';
+import { Choice, TextField } from '@/components/common/form-fields';
+import { Empty, Feedback, Loading } from '@/components/common/feedback';
+import { Panel } from '@/components/common/panel';
+import { date } from '@/lib/format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs';
 

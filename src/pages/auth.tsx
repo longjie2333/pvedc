@@ -15,8 +15,10 @@ import {
   ComboboxList,
   ComboboxItem,
 } from '@/components/ui/combobox';
-import { OtpInput } from '@/components/otp-input';
-import { Feedback, ProfileChoice, TextField } from '@/components/common';
+import { OtpInput } from '@/components/common/otp-input';
+import { Feedback } from '@/components/common/feedback';
+import { ProfileChoice } from '@/components/catalog/profile-choice';
+import { TextField } from '@/components/common/form-fields';
 import { request, useCommand } from '@/lib/api';
 
 const features = ['独立的 Linux 环境', '资源状态一目了然', '公网服务轻松访问'];

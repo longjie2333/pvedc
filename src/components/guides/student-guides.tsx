@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { request } from '@/lib/api';
-import { Feedback } from '@/components/common';
+import { Feedback } from '@/components/common/feedback';
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
 

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import type { Task } from '../../shared/schema';
-import type { BatchStatus } from '../../shared/batch';
+import type { Task } from '../../../shared/schema';
+import type { BatchStatus } from '../../../shared/batch';
 import type { BatchNotice } from '@/lib/feedback';
 import { request } from '@/lib/api';
-import { taskNames } from '../../shared/activity';
-import { toastManager } from './ui/toast';
+import { taskNames } from '../../../shared/activity';
+import { toastManager } from '@/components/ui/toast';
 
 type WatchedTask = { id: string; scope: 'admin' | 'me' };
 

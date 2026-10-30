@@ -10,10 +10,11 @@ import { request, useCommand } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { Feedback, Loading, Modal } from '@/components/common';
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group.tsx';
-import { Switch } from '@/components/ui/switch.tsx';
-import { cn } from '@/lib/utils.ts';
+import { Feedback, Loading } from '@/components/common/feedback';
+import { Modal } from '@/components/common/modal';
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 
 type Draft = Pick<Guide, 'title' | 'markdown' | 'sortOrder' | 'defaultCollapsed' | 'published'> & { id?: string };
 const blank: Draft = {

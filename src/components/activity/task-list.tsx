@@ -1,12 +1,16 @@
-import type { Task } from '../../shared/schema';
-import { taskNames, taskStates } from '../../shared/activity';
+import type { Task } from '../../../shared/schema';
+import { taskNames, taskStates } from '../../../shared/activity';
 import { useCommand } from '@/lib/api';
 import { useActivityRecords } from '@/lib/activity';
-import { Choice, Empty, Feedback, Loading, Panel, Status, TextField, date, stateNames } from './common';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Button } from './ui/button';
-import { ActivityFilters } from './activity-filters';
-import { RecordPagination } from './record-pagination';
+import { Choice, TextField } from '@/components/common/form-fields';
+import { Empty, Feedback, Loading } from '@/components/common/feedback';
+import { Panel } from '@/components/common/panel';
+import { Status, stateNames } from '@/components/common/status';
+import { date } from '@/lib/format';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { ActivityFilters } from '@/components/activity/activity-filters';
+import { RecordPagination } from '@/components/common/record-pagination';
 
 export function TaskList({ admin = false, active = true }: { admin?: boolean; active?: boolean }) {
   const command = useCommand(),

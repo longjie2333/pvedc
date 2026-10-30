@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { request } from '@/lib/api';
 import { copyText } from '@/lib/feedback';
-import { Button } from './ui/button';
-import { toastManager } from './ui/toast';
-import { TextField } from './common';
+import { Button } from '@/components/ui/button';
+import { toastManager } from '@/components/ui/toast';
+import { TextField } from '@/components/common/form-fields';
 
 export function GostCredentials() {
   const [authorization, setAuthorization] = useState(''),

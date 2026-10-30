@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Forward, ProfileSummary, Resource, Student } from '../../shared/schema';
 import { request, useCommand } from '@/lib/api';
-import { Feedback, Loading, PageTitle, ProfileChoice, TextField } from '@/components/common';
-import { ForwardPanel } from '@/components/forward-panel';
-import { MachineDetail } from '@/components/resource';
-import { TaskList } from '@/components/task-list';
+import { Feedback, Loading } from '@/components/common/feedback';
+import { PageTitle } from '@/components/common/panel';
+import { ProfileChoice } from '@/components/catalog/profile-choice';
+import { TextField } from '@/components/common/form-fields';
+import { ForwardPanel } from '@/components/forward/forward-panel';
+import { MachineDetail } from '@/components/resource/machine-detail';
+import { TaskList } from '@/components/activity/task-list';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
-import { StudentGuides } from '@/components/student-guides';
+import { StudentGuides } from '@/components/guides/student-guides';
 
 export function StudentPage({ studentId }: { studentId: string }) {
   const command = useCommand(),

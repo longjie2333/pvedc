@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Form } from './ui/form';
-import { Button } from './ui/button';
-import { TextField } from './common';
+import { Form } from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { TextField } from '@/components/common/form-fields';
 
 export function ActivityFilters({
   draft,

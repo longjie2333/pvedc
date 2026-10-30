@@ -15,15 +15,19 @@ import {
   Settings2,
   Trash2,
 } from 'lucide-react';
-import type { Forward, ListeningPort, Resource } from '../../shared/schema';
-import { Button } from './ui/button';
-import { Card, CardAction, CardDescription, CardHeader, CardPanel, CardTitle } from './ui/card';
-import { Form } from './ui/form';
-import { Group, GroupSeparator } from './ui/group';
-import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from './ui/menu';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Empty, Feedback, Modal, Status, TextField, bytes } from './common';
-import { ChartTooltip } from './chart-tooltip';
+import type { Forward, ListeningPort, Resource } from '../../../shared/schema';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardDescription, CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
+import { Form } from '@/components/ui/form';
+import { Group, GroupSeparator } from '@/components/ui/group';
+import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Empty, Feedback } from '@/components/common/feedback';
+import { Modal } from '@/components/common/modal';
+import { Status } from '@/components/common/status';
+import { TextField } from '@/components/common/form-fields';
+import { bytes } from '@/lib/format';
+import { ChartTooltip } from '@/components/common/chart-tooltip';
 import { request, useCommand } from '@/lib/api';
 
 interface Sample<T> {

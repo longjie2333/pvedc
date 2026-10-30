@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
-import { Choice } from './common';
-import { Button } from './ui/button';
+import { Choice } from '@/components/common/form-fields';
+import { Button } from '@/components/ui/button';
 import {
   Pagination,
   PaginationContent,
@@ -9,7 +9,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from './ui/pagination';
+} from '@/components/ui/pagination';
 
 export function RecordPagination({
   page,
