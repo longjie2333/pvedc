@@ -22,6 +22,7 @@ test('concurrent protected requests share one refresh and retry once', async ({ 
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '实例', exact: true })).toBeVisible();
   expect(refreshes).toBe(1);
   expect(attempts.get('overview')).toBe(2);
   expect(attempts.get('settings')).toBe(2);

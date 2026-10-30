@@ -43,7 +43,7 @@ export function Modal({ open, onClose, title, description, children, footer, des
   return <Root open={open} onOpenChange={v => !v && onClose()}><Popup className="max-w-2xl"><Header><Title>{title}</Title><Description>{description}</Description></Header>{destructive ? <div className="overflow-y-auto px-6 pb-6">{children}</div> : <DialogPanel>{children}</DialogPanel>}<Footer><Close render={<Button variant="ghost"/>}>取消</Close>{footer}</Footer></Popup></Root>;
 }
 export function Panel({ title, detail, children, action }: { title?: string; detail?: string; children: ReactNode; action?: ReactNode }) {
-  return <Card className="min-w-0 overflow-hidden">{title && <CardHeader className="border-b py-4"><CardTitle render={<h2/>} className="text-base">{title}</CardTitle>{detail && <CardDescription>{detail}</CardDescription>}{action && <CardAction className="self-center">{action}</CardAction>}</CardHeader>}{children}</Card>;
+  return <Card className="min-w-0 overflow-hidden">{title && <CardHeader className="pb-0"><CardTitle render={<h2/>}>{title}</CardTitle>{detail && <CardDescription className="text-muted-foreground text-xs tabular-nums">{detail}</CardDescription>}{action && <CardAction className="self-center">{action}</CardAction>}</CardHeader>}{children}</Card>;
 }
 /** A titled group of related form controls; sections stack with dividers inside editor dialogs. */
 export function FormSection({ legend, description, action, children }: { legend: string; description?: string; action?: ReactNode; children: ReactNode }) {

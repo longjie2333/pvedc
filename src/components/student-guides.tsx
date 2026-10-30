@@ -12,8 +12,8 @@ export function StudentGuides() {
   const guides = query.data?.guides ?? [];
   if (!guides.length) return null;
   return <Card render={<section aria-labelledby="student-guides-title"/>}>
-    <CardHeader className="pb-2"><CardTitle render={<h2 id="student-guides-title"/>}>指导书</CardTitle></CardHeader>
-    <CardPanel className="pt-0">
+    <CardHeader><CardTitle render={<h2 id="student-guides-title"/>}>指导书</CardTitle></CardHeader>
+    <CardPanel>
       <Accordion multiple defaultValue={guides.filter(guide => !guide.defaultCollapsed).map(guide => guide.id)}>
         {guides.map(guide => <AccordionItem key={guide.id} value={guide.id}>
           <AccordionTrigger>{guide.title}</AccordionTrigger>

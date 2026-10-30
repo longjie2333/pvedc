@@ -53,13 +53,20 @@ function SettingsForm({ initial, profiles, section }: { initial: SafeSettings; p
               hint={type === 'password' && initial.secrets[key as keyof SafeSettings['secrets']] ? '已配置；留空保留现有凭据' : undefined}
               onChange={event => setValues({ ...values, [key]: type === 'number' ? Number(event.target.value) : type === 'array' ? event.target.value.split(/[\s,]+/).filter(Boolean).map(Number) : event.target.value })}/>) }
       </div>
-      {group.fields.some(([, , type]) => type === 'boolean') && <section aria-label="开关设置" className="grid gap-3 border-t p-6">
+      {group.fields.some(([, , type]) => type === 'boolean') && <section aria-label="开关设置" className="grid gap-5 lg:grid-cols-2 p-6 pt-0">
         {group.fields.filter(([, , type]) => type === 'boolean').map(([key, label]) => <SwitchSetting key={key} label={label}
           description={key === 'registrationOpen' ? '开放后，名单内学生可以认领并创建计算资源。' : '未被指定配置的学生可以自行选择已发布的规格。'}
           checked={!!values[key]} onChange={value => setValues({ ...values, [key]: value })}/>)}
       </section>}
     </Panel>)}
-    <div className="sticky-actions"><Button type="submit" loading={command.pending}>{section === 'platform' ? '保存平台设置' : '保存公网配置'}</Button></div>
+    <div className="sticky-actions gap-2">
+      {section === 'forwarding' && <Button
+        loading={command.pending}
+        onClick={() => command.run('admin/gost/apply')}
+        variant="outline"
+      >应用 gost 配置</Button>}
+      <Button type="submit" loading={command.pending}>{section === 'platform' ? '保存平台设置' : '保存公网配置'}</Button>
+    </div>
   </Form>;
 }
 

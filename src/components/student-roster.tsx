@@ -8,6 +8,7 @@ import { segmentedControlItemVariants, segmentedControlRootClassName } from '@/l
 import { Empty, Feedback, Modal, Status, TextField } from './common';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { HeaderActions, HeaderButton } from './app-shell';
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Checkbox } from './ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
@@ -38,14 +39,11 @@ export function StudentRoster({ students, profiles, onAdd, onEdit, onMachine, on
   const chooseBatch = (action: BatchAction, ids = selected) => { setConfirmation(''); setBatch({ action, ids: [...ids] }); };
   const toggleKey = (id: string) => setRevealed(previous => previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id]);
   return <>
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <h1 className="font-semibold text-xl">学生名单</h1>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={() => downloadFile('admin/students/export', 'students.csv')}><ArrowDownToLine/>导出</Button>
-        <Button type="button" variant="outline" onClick={onImport}><Upload/>导入名单</Button>
-        <Button type="button" onClick={onAdd}><UserPlus/>添加学生</Button>
-      </div>
-    </div>
+    <HeaderActions>
+      <HeaderButton type="button" variant="outline" icon={<ArrowDownToLine/>} label="导出" onClick={() => downloadFile('admin/students/export', 'students.csv')}/>
+      <HeaderButton type="button" variant="outline" icon={<Upload/>} label="导入名单" onClick={onImport}/>
+      <HeaderButton type="button" icon={<UserPlus/>} label="添加学生" onClick={onAdd}/>
+    </HeaderActions>
     <Card>
       <div className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
         <RadioGroupPrimitive aria-label="认领状态" value={filter} onValueChange={value => { setFilter(value as Filter); setSelected([]); }} className={segmentedControlRootClassName}>
@@ -55,17 +53,17 @@ export function StudentRoster({ students, profiles, onAdd, onEdit, onMachine, on
       </div>
       {!batch && !resetStudent && command.error && <div className="px-6 pt-4"><Feedback error={command.error}/></div>}
       {filtered.length ? <Table><TableHeader><TableRow>
-        <TableHead className="w-10 ps-6"><Checkbox aria-label="全选当前结果" checked={all} indeterminate={selected.length > 0 && !all} onCheckedChange={checked => setSelected(checked ? filtered.map(student => student.id) : [])}/></TableHead>
-        <TableHead>学生</TableHead><TableHead>班级</TableHead><TableHead>认领密钥</TableHead><TableHead>指定配置</TableHead><TableHead>状态</TableHead><TableHead className="w-12 pe-6"/>
+        <TableHead className="w-10"><Checkbox aria-label="全选当前结果" checked={all} indeterminate={selected.length > 0 && !all} onCheckedChange={checked => setSelected(checked ? filtered.map(student => student.id) : [])}/></TableHead>
+        <TableHead>学生</TableHead><TableHead>班级</TableHead><TableHead>认领密钥</TableHead><TableHead>指定配置</TableHead><TableHead>状态</TableHead><TableHead className="w-12"/>
       </TableRow></TableHeader><TableBody>
         {filtered.map(student => <TableRow key={student.id} data-state={selected.includes(student.id) ? 'selected' : undefined}>
-          <TableCell className="ps-6"><Checkbox aria-label={'选择 ' + student.name} checked={selected.includes(student.id)} onCheckedChange={checked => setSelected(previous => checked ? [...previous, student.id] : previous.filter(id => id !== student.id))}/></TableCell>
+          <TableCell><Checkbox aria-label={'选择 ' + student.name} checked={selected.includes(student.id)} onCheckedChange={checked => setSelected(previous => checked ? [...previous, student.id] : previous.filter(id => id !== student.id))}/></TableCell>
           <TableCell><div className="font-medium">{student.name}</div><div className="font-mono text-muted-foreground text-xs">{student.id}</div></TableCell>
           <TableCell className="text-muted-foreground">{student.className || '—'}</TableCell>
           <TableCell>{student.claimKey ? <span className="inline-flex items-center gap-1 font-mono text-xs">{revealed.includes(student.id) ? student.claimKey : '••••••'}<Button type="button" variant="ghost" size="icon-xs" aria-label={(revealed.includes(student.id) ? '隐藏' : '显示') + student.name + '的认领密钥'} aria-pressed={revealed.includes(student.id)} onClick={() => toggleKey(student.id)}>{revealed.includes(student.id) ? <EyeOff/> : <Eye/>}</Button></span> : <span className="text-muted-foreground">—</span>}</TableCell>
           <TableCell className="text-muted-foreground">{profiles.find(profile => profile.id === student.profileId)?.name || '遵循平台规则'}</TableCell>
           <TableCell>{student.deleting || student.resource ? <Status state={student.deleting ? 'deleting' : student.resource!.state}/> : <Badge variant={student.claimed ? 'outline' : 'secondary'}>{student.claimed ? '已认领' : '未认领'}</Badge>}{student.resource && <div className="mt-0.5 font-mono text-muted-foreground text-xs">{student.resource.networks[0].ip}</div>}</TableCell>
-          <TableCell className="pe-6"><Menu>
+          <TableCell><Menu>
             <MenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={'操作 ' + student.name}/>}><Ellipsis/></MenuTrigger>
             <MenuPopup align="end">
               <MenuItem disabled={student.deleting} onClick={() => onEdit(student)}>编辑</MenuItem>
@@ -98,8 +96,8 @@ export function StudentRoster({ students, profiles, onAdd, onEdit, onMachine, on
       <Button type="button" variant="ghost" size="icon-sm" aria-label="清空选择" onClick={() => setSelected([])}><X/></Button>
     </div>}
     {result && <Card>
-      <CardHeader className="pb-4"><CardTitle render={<h2/>}>批量操作受理结果</CardTitle><CardDescription>已提交的任务在后台继续执行</CardDescription><CardAction><Button type="button" variant="outline" size="sm" render={<Link to="/admin/tasks"/>}>查看任务记录</Button></CardAction></CardHeader>
-      <Table><TableHeader><TableRow><TableHead className="ps-6">学号</TableHead><TableHead className="pe-6">结果</TableHead></TableRow></TableHeader><TableBody>{result.items.map(item => <TableRow key={item.studentId}><TableCell className="ps-6 font-mono text-xs">{item.studentId}</TableCell><TableCell className="pe-6">{item.status === 'queued' ? '已提交' : item.status === 'skipped' ? '已跳过' : '未受理'}{item.message && <div className="text-muted-foreground text-xs">{item.message}</div>}</TableCell></TableRow>)}</TableBody></Table>
+      <CardHeader><CardTitle render={<h2/>}>批量操作受理结果</CardTitle><CardDescription>已提交的任务在后台继续执行</CardDescription><CardAction><Button type="button" variant="outline" size="sm" render={<Link to="/admin/tasks"/>}>查看任务记录</Button></CardAction></CardHeader>
+      <Table><TableHeader><TableRow><TableHead>学号</TableHead><TableHead>结果</TableHead></TableRow></TableHeader><TableBody>{result.items.map(item => <TableRow key={item.studentId}><TableCell className="font-mono text-xs">{item.studentId}</TableCell><TableCell>{item.status === 'queued' ? '已提交' : item.status === 'skipped' ? '已跳过' : '未受理'}{item.message && <div className="text-muted-foreground text-xs">{item.message}</div>}</TableCell></TableRow>)}</TableBody></Table>
     </Card>}
     <Modal destructive={batch?.action === 'delete' || batch?.action === 'reclaim'} open={!!batch} onClose={() => setBatch(undefined)} title={batch ? batchNames[batch.action] : '批量操作'}
       description={batch?.action === 'delete' ? '将停用账号，回收机器及转发，成功后删除名单；机器中的数据会被永久清空。' : batch?.action === 'reclaim' ? '将回收所选学生的机器及转发，系统盘数据会被永久清空。' : '对以下学生的机器提交后台操作，没有机器的学生会被跳过。'}

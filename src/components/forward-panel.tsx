@@ -34,12 +34,12 @@ export function ForwardPanel({ rules, resource, publicHost, admin = false }: { r
   }), manual], [ports.data?.data]);
   const choice = options.find(option => option.value === selected);
   const custom = admin || selected === 'manual';
-  return <Card>
-    <CardHeader className="pb-4"><CardTitle render={<h2/>}>公网转发</CardTitle>{resource && <CardAction><Button type="button" size="sm" disabled={resource.state !== 'ready'} onClick={() => { setSelected(''); setProtocol('tcp'); setTargetPort(''); setOpen(true); }}><Plus/>添加转发</Button></CardAction>}</CardHeader>
+  return <Card className="overflow-hidden">
+    <CardHeader className="border-b"><CardTitle render={<h2/>}>公网转发</CardTitle>{resource && <CardAction><Button type="button" size="sm" disabled={resource.state !== 'ready'} onClick={() => { setSelected(''); setProtocol('tcp'); setTargetPort(''); setOpen(true); }}><Plus/>添加转发</Button></CardAction>}</CardHeader>
     {!open && command.error && <div className="px-6"><Feedback error={command.error}/></div>}
-    {rules.length ? <Table><TableHeader><TableRow><TableHead className="ps-6">公网入口</TableHead><TableHead>容器端口</TableHead><TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="pe-6"/></TableRow></TableHeader><TableBody>
-      {rules.map(rule => <TableRow key={rule.id}><TableCell className="ps-6"><span className="inline-flex items-center gap-1.5"><Badge variant="outline" size="sm">{rule.protocol.toUpperCase()}</Badge><span className="font-mono text-xs">{publicHost || '未设置公网地址'}:{rule.publicPort}</span>{publicHost && <Button type="button" variant="ghost" size="icon-xs" aria-label="复制公网入口" onClick={() => copyText(publicHost + ':' + rule.publicPort)}><Copy/></Button>}</span></TableCell>
-        <TableCell className="font-mono text-xs">{rule.targetPort}</TableCell><TableCell>{rule.note || '—'}</TableCell><TableCell><Status state={rule.state}/>{rule.error && <div className="text-xs text-destructive-foreground">{rule.error}</div>}</TableCell><TableCell className="pe-6"><div className="flex justify-end gap-1">
+    {rules.length ? <Table><TableHeader><TableRow><TableHead>公网入口</TableHead><TableHead>容器端口</TableHead><TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead/></TableRow></TableHeader><TableBody>
+      {rules.map(rule => <TableRow key={rule.id}><TableCell><span className="inline-flex items-center gap-1.5"><Badge variant="outline" size="sm">{rule.protocol.toUpperCase()}</Badge><span className="font-mono text-xs">{publicHost || '未设置公网地址'}:{rule.publicPort}</span>{publicHost && <Button type="button" variant="ghost" size="icon-xs" aria-label="复制公网入口" onClick={() => copyText(publicHost + ':' + rule.publicPort)}><Copy/></Button>}</span></TableCell>
+        <TableCell className="font-mono text-xs">{rule.targetPort}</TableCell><TableCell>{rule.note || '—'}</TableCell><TableCell><Status state={rule.state}/>{rule.error && <div className="text-xs text-destructive-foreground">{rule.error}</div>}</TableCell><TableCell><div className="flex justify-end gap-1">
           <Button type="button" size="xs" variant="ghost" loading={command.pending} onClick={() => command.run(prefix + '/forwards/' + rule.id + '/' + (rule.enabled ? 'disable' : 'enable'))}>{rule.enabled ? '暂停' : '启用'}</Button>
           <Button type="button" size="xs" variant="ghost" loading={command.pending} onClick={() => command.run(prefix + '/forwards/' + rule.id + '/delete')}>删除</Button>
         </div></TableCell></TableRow>)}

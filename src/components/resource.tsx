@@ -1,17 +1,17 @@
 import { copyText } from '@/lib/feedback';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
-import { ArrowDownToLine, Copy, Ellipsis, KeyRound, Power, PowerOff, RotateCw, Settings2, Trash2 } from 'lucide-react';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
+import { ArrowDown, ArrowDownToLine, ArrowUp, Copy, Ellipsis, KeyRound, Power, PowerOff, RotateCw, Settings2, Trash2 } from 'lucide-react';
 import type { Forward, ListeningPort, Resource } from '../../shared/schema';
 import { Button } from './ui/button';
 import { Card, CardAction, CardDescription, CardHeader, CardPanel, CardTitle } from './ui/card';
 import { Form } from './ui/form';
 import { Group, GroupSeparator } from './ui/group';
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from './ui/menu';
-import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './ui/meter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Empty, Feedback, Modal, Status, TextField, bytes } from './common';
+import { ChartTooltip } from './chart-tooltip';
 import { request, useCommand } from '@/lib/api';
 
 interface Sample<T> { data: T | null; error: string | null; updatedAt: number | null }
@@ -21,15 +21,27 @@ const destructive = ['rebuild', 'reclaim'];
 const uptime = (seconds: number) => Math.floor(seconds / 86400) + ' 天 ' + Math.floor(seconds / 3600) % 24 + ' 小时';
 const memory = (mib: number) => mib % 1024 ? mib + ' MiB' : mib / 1024 + ' GiB';
 
-function MetricCard({ label, value, children }: { label: string; value: string; children: ReactNode }) {
-  return <Card className="gap-0 p-4 @lg:p-5">
-    <span className="text-muted-foreground text-sm">{label}</span>
-    <span className="mt-0.5 font-semibold text-lg tabular-nums">{value}</span>
-    <div className="mt-3 flex h-8 items-end">{children}</div>
+type Point = Record<string, number | null>;
+const rate = (n: number) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MiB/s' : n >= 1024 ? (n / 1024).toFixed(1) + ' KiB/s' : n.toFixed(0) + ' B/s';
+const numeric = (value: unknown, scale = 1) => typeof value === 'number' ? value * scale : null;
+
+const Total = ({ value }: { value: number }) => <span className="font-normal text-muted-foreground text-sm">/ {bytes(value)}</span>;
+/** Headline value with an edge-to-edge sparkline of the last hour; hovering shows the sampled value. */
+function MetricCard({ label, value, points, series, format, max }: { label: string; value: ReactNode; points: Point[]; series: { key: string; name: string; color: string }[]; format: (value: number) => string; max?: number }) {
+  return <Card className="gap-0">
+    <div className="flex min-w-0 flex-col px-4 pt-4 @lg:px-5 @lg:pt-5">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 font-semibold text-lg tabular-nums *:whitespace-nowrap">{value}</span>
+    </div>
+    <div className="mt-auto h-16 pt-2 [&_.recharts-surface]:[clip-path:inset(0_round_0_0_15px_15px)]">{points.length > 0 && <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={points} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+        <defs>{series.map(s => <linearGradient key={s.key} id={'fill-' + s.key} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={s.color} stopOpacity={0.22}/><stop offset="100%" stopColor={s.color} stopOpacity={0}/></linearGradient>)}</defs>
+        <YAxis hide domain={[0, max || 'auto']}/>
+        <Tooltip cursor={{ stroke: 'var(--border)' }} allowEscapeViewBox={{ y: true }} wrapperStyle={{ zIndex: 10 }} content={<ChartTooltip format={format}/>}/>
+        {series.map(item => <Area key={item.key} type="monotone" dataKey={item.key} name={item.name} stroke={item.color} strokeWidth={1.5} fill={`url(#fill-${item.key})`} isAnimationActive={false} connectNulls={false}/>)}
+      </AreaChart>
+    </ResponsiveContainer>}</div>
   </Card>;
-}
-function Usage({ label, used, total }: { label: string; used?: number; total?: number }) {
-  return <Meter value={used !== undefined && total ? Math.min(100, used / total * 100) : 0} className="w-full"><MeterLabel className="sr-only">{label}</MeterLabel><MeterTrack className="h-1.5 rounded-full"><MeterIndicator/></MeterTrack></Meter>;
 }
 function Fact({ label, value, mono, copy }: { label: string; value: string; mono?: boolean; copy?: boolean }) {
   return <div className="flex min-w-0 flex-col gap-1">
@@ -46,7 +58,7 @@ export function MachineDetail({ resource, admin = false, forwards = [], publicHo
   const command = useCommand(), [action, setAction] = useState('');
   const m = resource.state === 'ready' ? status.data?.data : undefined;
   const ssh = forwards.find(rule => rule.protocol === 'tcp' && rule.targetPort === 22 && rule.enabled);
-  const cpu = resource.state === 'ready' ? history.data?.data?.map(point => ({ time: point.time, value: typeof point.cpu === 'number' ? point.cpu * 100 : null })) ?? [] : [];
+  const points: Point[] = resource.state === 'ready' ? history.data?.data?.map(point => ({ time: point.time, cpu: numeric(point.cpu, 100), mem: numeric(point.mem), disk: numeric(point.disk), netin: numeric(point.netin), netout: numeric(point.netout) })) ?? [] : [];
   const power = m?.status === 'running' ? ['shutdown', 'reboot'] : m?.status === 'stopped' ? ['start'] : ['start', 'shutdown', 'reboot'];
   async function perform(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,25 +95,25 @@ export function MachineDetail({ resource, admin = false, forwards = [], publicHo
       </CardPanel>
     </Card>
     <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
-      <MetricCard label="CPU" value={m ? (m.cpu * 100).toFixed(1) + '%' : '—'}>{cpu.length ? <ResponsiveContainer width="100%" height={32}><AreaChart data={cpu} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}><Area type="monotone" dataKey="value" stroke="var(--chart-1)" strokeWidth={1.5} fill="var(--chart-1)" fillOpacity={0.12} isAnimationActive={false} connectNulls={false}/></AreaChart></ResponsiveContainer> : <span className="text-muted-foreground text-sm">{resource.spec.cores} vCPU</span>}</MetricCard>
-      <MetricCard label="内存" value={m ? bytes(m.mem) + ' / ' + bytes(m.maxmem) : '—'}><Usage label="内存" used={m?.mem} total={m?.maxmem}/></MetricCard>
-      <MetricCard label="磁盘" value={m ? bytes(m.disk) + ' / ' + bytes(m.maxdisk) : '—'}><Usage label="磁盘" used={m?.disk} total={m?.maxdisk}/></MetricCard>
-      <MetricCard label="网络接收" value={m ? bytes(m.netin) : '—'}><span className="text-muted-foreground text-sm tabular-nums">{m ? '发送 ' + bytes(m.netout) : '等待采集'}</span></MetricCard>
+      <MetricCard label="CPU" value={m ? (m.cpu * 100).toFixed(1) + '%' : '—'} points={points} series={[{ key: 'cpu', name: 'CPU', color: 'var(--chart-1)' }]} format={value => value.toFixed(1) + '%'}/>
+      <MetricCard label="内存" value={m ? <><span>{bytes(m.mem)}</span><Total value={m.maxmem}/></> : '—'} points={points} series={[{ key: 'mem', name: '内存', color: 'var(--chart-2)' }]} format={bytes} max={m?.maxmem}/>
+      <MetricCard label="磁盘" value={m ? <><span>{bytes(m.disk)}</span><Total value={m.maxdisk}/></> : '—'} points={points} series={[{ key: 'disk', name: '磁盘', color: 'var(--chart-4)' }]} format={bytes} max={m?.maxdisk}/>
+      <MetricCard label="网络" value={m ? <><span className="inline-flex items-center"><ArrowDown aria-label="接收" className="size-4 text-muted-foreground"/>{bytes(m.netin)}</span><span className="inline-flex items-center"><ArrowUp aria-label="发送" className="size-4 text-muted-foreground"/>{bytes(m.netout)}</span></> : '—'} points={points} series={[{ key: 'netin', name: '接收', color: 'var(--chart-1)' }, { key: 'netout', name: '发送', color: 'var(--chart-3)' }]} format={rate}/>
     </div>
     {(admin || resource.networks.length > 1) && <Card>
-      <CardHeader className="pb-4"><CardTitle render={<h2/>}>网络接口</CardTitle></CardHeader>
-      <Table><TableHeader><TableRow><TableHead className="ps-6">网卡</TableHead><TableHead>网络</TableHead><TableHead>地址</TableHead><TableHead className="pe-6">MAC 地址</TableHead></TableRow></TableHeader><TableBody>{resource.networks.map(entry => <TableRow key={entry.iface}>
-        <TableCell className="ps-6 font-mono text-xs">{entry.iface}</TableCell>
+      <CardHeader><CardTitle render={<h2/>}>网络接口</CardTitle></CardHeader>
+      <Table><TableHeader><TableRow><TableHead>网卡</TableHead><TableHead>网络</TableHead><TableHead>地址</TableHead><TableHead>MAC 地址</TableHead></TableRow></TableHeader><TableBody>{resource.networks.map(entry => <TableRow key={entry.iface}>
+        <TableCell className="font-mono text-xs">{entry.iface}</TableCell>
         <TableCell><div>{entry.name}</div><div className="text-muted-foreground text-xs">{entry.bridge}{entry.vlan ? ' · VLAN ' + entry.vlan : ''}</div></TableCell>
         <TableCell><div className="font-mono text-xs">{entry.ip}</div><div className="text-muted-foreground text-xs">{entry.cidr}{entry.gateway ? ' · 网关 ' + entry.gateway : ''}</div></TableCell>
-        <TableCell className="pe-6 font-mono text-xs">{entry.mac || '由 PVE 分配'}</TableCell>
+        <TableCell className="font-mono text-xs">{entry.mac || '由 PVE 分配'}</TableCell>
       </TableRow>)}</TableBody></Table>
     </Card>}
     {admin && <Card>
-      <CardHeader className="pb-4"><CardTitle render={<h2/>}>系统监听端口</CardTitle>{ports.data?.updatedAt && <CardAction className="text-muted-foreground text-xs tabular-nums">{new Date(ports.data.updatedAt).toLocaleTimeString('zh-CN')}</CardAction>}</CardHeader>
+      <CardHeader><CardTitle render={<h2/>}>系统监听端口</CardTitle>{ports.data?.updatedAt && <CardAction className="text-muted-foreground text-xs tabular-nums">{new Date(ports.data.updatedAt).toLocaleTimeString('zh-CN')}</CardAction>}</CardHeader>
       {(ports.data?.error || ports.error) && <div className="px-6"><Feedback error={ports.data?.error || ports.error?.message}/></div>}
-      {resource.state === 'ready' && ports.data?.data?.length ? <Table><TableHeader><TableRow><TableHead className="ps-6">协议</TableHead><TableHead>监听地址</TableHead><TableHead>端口</TableHead><TableHead className="pe-6">进程</TableHead></TableRow></TableHeader><TableBody>{ports.data.data.map((p, i) => <TableRow key={i}>
-        <TableCell className="ps-6">{p.protocol.toUpperCase()}</TableCell><TableCell className="font-mono text-xs">{p.address}</TableCell><TableCell className="font-mono text-xs">{p.port}</TableCell><TableCell className="pe-6">{p.processes.map(process => process.name + ' · ' + process.pid).join(', ') || '—'}</TableCell>
+      {resource.state === 'ready' && ports.data?.data?.length ? <Table><TableHeader><TableRow><TableHead>协议</TableHead><TableHead>监听地址</TableHead><TableHead>端口</TableHead><TableHead>进程</TableHead></TableRow></TableHeader><TableBody>{ports.data.data.map((p, i) => <TableRow key={i}>
+        <TableCell>{p.protocol.toUpperCase()}</TableCell><TableCell className="font-mono text-xs">{p.address}</TableCell><TableCell className="font-mono text-xs">{p.port}</TableCell><TableCell>{p.processes.map(process => process.name + ' · ' + process.pid).join(', ') || '—'}</TableCell>
       </TableRow>)}</TableBody></Table> : <CardPanel><Empty title="暂无监听端口"/></CardPanel>}
     </Card>}
     <Modal destructive={destructive.includes(action)} open={!!action} onClose={() => setAction('')} title={(names[action] || '') + '容器'} description={destructive.includes(action) ? '此操作将永久清空系统盘数据。重建保留规格、IP 和转发规则；回收则释放资源。' : '操作将以后台任务执行，可在任务列表查看结果。'} footer={<Button type="submit" form="resource-action" loading={command.pending} variant={destructive.includes(action) ? 'destructive' : 'default'}>确认{names[action]}</Button>}><Form id="resource-action" className="flex flex-col gap-4" onSubmit={perform}><Feedback error={command.error}/>{destructive.includes(action) && <TextField label={'输入学号 ' + resource.studentId + ' 以确认'} name="confirmation" required/>}{['password', 'rebuild'].includes(action) && !admin && <TextField label="当前平台密码" name="password" type="password" required minLength={10}/>}{(action === 'password' || (action === 'rebuild' && admin)) && <TextField label="新的平台和 root 密码" name="newPassword" type="password" required minLength={10}/>}</Form></Modal>

@@ -7,7 +7,7 @@ export function ActivityFilters({ draft, setFilter, search, reset, refresh, load
   draft: Record<string, string>; setFilter: (key: string, value: string) => void;
   search: () => void; reset: () => void; refresh: () => void; loading: boolean; children?: ReactNode;
 }) {
-  return <Form onSubmit={event => { event.preventDefault(); search(); }} className="grid gap-4 border-b p-5 sm:grid-cols-2 lg:grid-cols-3">
+  return <Form onSubmit={event => { event.preventDefault(); search(); }} className="grid gap-4 border-b px-6 py-5 sm:grid-cols-2 lg:grid-cols-3">
     <TextField label="关键词" placeholder="搜索记录" value={draft.q || ''} onChange={event => setFilter('q', event.target.value)}/>
     {children}
     <TextField label="开始日期" type="date" value={draft.from || ''} onChange={event => setFilter('from', event.target.value)}/>
