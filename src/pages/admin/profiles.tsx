@@ -7,7 +7,7 @@ import { useAdminOverview, useSettings } from '@/lib/queries';
 import { HeaderActions, HeaderButton } from '@/layouts/header-actions';
 import { ConfirmAction, type PendingAction } from '@/components/common/confirm-action';
 import { Empty, Feedback, Loading } from '@/components/common/feedback';
-import { CatalogEditor } from '@/components/catalog/catalog-editor';
+import { ProfileEditor } from '@/components/catalog/profile-editor';
 import { ProfileCard, type Capacity } from '@/components/catalog/profile-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardPanel } from '@/components/ui/card';
@@ -84,11 +84,9 @@ export function ProfilesPage() {
       </p>
       <ConfirmAction action={confirmation} onClose={() => setConfirmation(undefined)} />
       {editing && (
-        <CatalogEditor
-          key={'profiles' + (editing.item?.id || 'new')}
-          kind="profiles"
-          item={editing.item}
-          profiles={profiles}
+        <ProfileEditor
+          key={editing.item?.id || 'new'}
+          profile={editing.item}
           networks={networks}
           onClose={() => setEditing(undefined)}
         />

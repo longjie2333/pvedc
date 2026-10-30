@@ -5,7 +5,7 @@ import { downloadFile } from '@/lib/api';
 import { useAdminOverview } from '@/lib/queries';
 import { HeaderActions, HeaderButton } from '@/layouts/header-actions';
 import { Feedback, Loading } from '@/components/common/feedback';
-import { CatalogEditor } from '@/components/catalog/catalog-editor';
+import { StudentEditor } from '@/components/catalog/student-editor';
 import { MachineDialog } from '@/components/resource/machine-dialog';
 import { StudentImportDialog } from '@/components/students/student-import-dialog';
 import { StudentRoster } from '@/components/students/student-roster';
@@ -17,7 +17,7 @@ export function StudentsPage() {
     [machine, setMachine] = useState<Resource>();
   if (overview.isPending) return <Loading />;
   if (overview.error) return <Feedback error={overview.error.message} />;
-  const { students, profiles, networks } = overview.data;
+  const { students, profiles } = overview.data;
   return (
     <>
       <HeaderActions>
@@ -44,12 +44,10 @@ export function StudentsPage() {
         onMachine={student => setMachine(student.resource!)}
       />
       {editing && (
-        <CatalogEditor
-          key={'students' + (editing.item?.id || 'new')}
-          kind="students"
-          item={editing.item}
+        <StudentEditor
+          key={editing.item?.id || 'new'}
+          student={editing.item}
           profiles={profiles}
-          networks={networks}
           onClose={() => setEditing(undefined)}
         />
       )}

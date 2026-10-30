@@ -6,7 +6,7 @@ import { useAdminOverview } from '@/lib/queries';
 import { HeaderActions, HeaderButton } from '@/layouts/header-actions';
 import { ConfirmAction, type PendingAction } from '@/components/common/confirm-action';
 import { Feedback, Loading } from '@/components/common/feedback';
-import { CatalogEditor } from '@/components/catalog/catalog-editor';
+import { NetworkEditor } from '@/components/catalog/network-editor';
 import { NetworkCard } from '@/components/catalog/network-card';
 import { Button } from '@/components/ui/button';
 
@@ -17,7 +17,7 @@ export function NetworksPage() {
     [confirmation, setConfirmation] = useState<PendingAction>();
   if (overview.isPending) return <Loading />;
   if (overview.error) return <Feedback error={overview.error.message} />;
-  const { profiles, networks } = overview.data;
+  const { networks } = overview.data;
   return (
     <>
       <HeaderActions>
@@ -66,14 +66,7 @@ export function NetworksPage() {
       </div>
       <ConfirmAction action={confirmation} onClose={() => setConfirmation(undefined)} />
       {editing && (
-        <CatalogEditor
-          key={'networks' + (editing.item?.id || 'new')}
-          kind="networks"
-          item={editing.item}
-          profiles={profiles}
-          networks={networks}
-          onClose={() => setEditing(undefined)}
-        />
+        <NetworkEditor key={editing.item?.id || 'new'} network={editing.item} onClose={() => setEditing(undefined)} />
       )}
     </>
   );
