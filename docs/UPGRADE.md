@@ -57,6 +57,13 @@
 
 ## 后续实施注意
 
+### 2026-10-31 设计规范改为根目录 DESIGN.md（本地，仅文档）
+
+- 删除 `docs/DESIGN-SYSTEM.md`，按 DESIGN.md 格式（`@google/design.md` 0.4.0）新建根目录 `DESIGN.md`：frontmatter 记录 `src/styles.css` 中的颜色变量与 `sans`/`mono` 字体，正文记录外壳、页面模板、组件、文案、无障碍规则和明确禁止项。`AGENTS.md`、`README.md` 的引用同步改为 `DESIGN.md`；代码组织规则只保留在 `AGENTS.md`「前端结构规则」。
+- 有意不再收录：具体像素与断点数值、登录面板色值、已知陷阱表、验收清单、复用步骤、参考实现文件表、深色模式与断点统一等未决事项。圆角与间距沿用 Tailwind 与 coss 默认刻度，在 frontmatter 中标为 omitted。深色模式未被产品启用，不写主题表。
+- 验证：`design.md lint DESIGN.md` 0 错误 0 警告；`design.md export --format css-tailwind` 输出 `--color-*`、`--font-*`、`--text-*`。导出器把多字体回退栈整体加了引号，属于导出器限制。
+- 未提交；本条之前的历史记录中对 `docs/DESIGN-SYSTEM.md` 的引用保持原样。
+
 ### 2026-10-30 拆分学生名单与机器调整，修复自定义网卡改动未提示关机（本地开发与测试）
 
 - 提交 `f6ed406`：`StudentRoster` 拆为 `StudentTable`（行与选择框，行菜单由调用方组合）、`BatchToolbar`、`BatchDialog`、`BatchResultCard`，各自持有命令与状态；选中项改为渲染时与当前筛选结果求交集，去掉按筛选结果裁剪选中项的 `useEffect`；重置认领改用 `ConfirmAction`（新增 `confirmLabel`）。新增 e2e `roster.spec.ts`（行菜单重置认领、单行删除确认短语与受理结果）。

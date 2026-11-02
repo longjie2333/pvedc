@@ -13,3 +13,8 @@ playwright-report/
 __pycache__/
 *.pyc
 .idea
+.slidep
+.workbuddy
+output
+thesis
+mock
