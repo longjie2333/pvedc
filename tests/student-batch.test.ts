@@ -23,18 +23,69 @@ const live = new Set<number>();
 const job = (id: string) => getDb().prepare('SELECT * FROM jobs WHERE id=?').get(id) as FullJobRow;
 beforeAll(() => {
   process.env.PDC_DATA_DIR = directory;
-  network = { ...saveNetwork({ name: 'Batch network', mode: 'nat', bridge: 'dcbatch', cidr: '172.30.0.0/24', gateway: '172.30.0.1', start: '172.30.0.10', end: '172.30.0.50', dns: ['1.1.1.1'] }), ready: true, error: null };
+  network = {
+    ...saveNetwork({
+      name: 'Batch network',
+      mode: 'nat',
+      bridge: 'dcbatch',
+      cidr: '172.30.0.0/24',
+      gateway: '172.30.0.1',
+      start: '172.30.0.10',
+      end: '172.30.0.50',
+      dns: ['1.1.1.1'],
+    }),
+    ready: true,
+    error: null,
+  };
   getDb().prepare('UPDATE networks SET ready=1').run();
-  profile = saveProfile({ name: 'Batch profile', template: 'local:vztmpl/debian-13-standard_test_amd64.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 1, memory: 512, disk: 4, networkIds: [network.id], published: true });
+  profile = saveProfile({
+    name: 'Batch profile',
+    template: 'local:vztmpl/debian-13-standard_test_amd64.tar.zst',
+    distro: 'debian',
+    storage: 'local-lvm',
+    cores: 1,
+    memory: 512,
+    disk: 4,
+    networkIds: [network.id],
+    published: true,
+  });
   saveSettings({ ...getSettings(), registrationOpen: true, defaultProfileId: profile.id });
 });
 beforeEach(() => {
   const db = getDb();
-  for (const table of ['jobs', 'forwards', 'resources', 'students', 'sessions', 'audit']) db.prepare('DELETE FROM ' + table).run();
-  saveStudents(['a001', 'a002', 'a003'].map(id => ({ id, name: '学生-' + id, className: 'Test', profileId: null, enabled: true })));
-  for (const [index, id] of ['a001', 'a003'].entries()) db.prepare('INSERT INTO resources(id,student_id,vmid,profile_id,networks,spec,state,created_at) VALUES(?,?,?,?,?,?,?,0)')
-    .run('resource-' + id, id, 1001 + index, profile.id, JSON.stringify([{ iface: 'eth0', networkId: network.id, name: network.name, bridge: network.bridge, cidr: network.cidr, ip: '172.30.0.' + (10 + index), gateway: network.gateway, dns: network.dns, vlan: null, mac: null }]), JSON.stringify(profile), 'ready');
-  live.clear(); live.add(1001); live.add(1002);
+  for (const table of ['jobs', 'forwards', 'resources', 'students', 'sessions', 'audit'])
+    db.prepare('DELETE FROM ' + table).run();
+  saveStudents(
+    ['a001', 'a002', 'a003'].map(id => ({ id, name: '学生-' + id, className: 'Test', profileId: null, enabled: true })),
+  );
+  for (const [index, id] of ['a001', 'a003'].entries())
+    db.prepare(
+      'INSERT INTO resources(id,student_id,vmid,profile_id,networks,spec,state,created_at) VALUES(?,?,?,?,?,?,?,0)',
+    ).run(
+      'resource-' + id,
+      id,
+      1001 + index,
+      profile.id,
+      JSON.stringify([
+        {
+          iface: 'eth0',
+          networkId: network.id,
+          name: network.name,
+          bridge: network.bridge,
+          cidr: network.cidr,
+          ip: '172.30.0.' + (10 + index),
+          gateway: network.gateway,
+          dns: network.dns,
+          vlan: null,
+          mac: null,
+        },
+      ]),
+      JSON.stringify(profile),
+      'ready',
+    );
+  live.clear();
+  live.add(1001);
+  live.add(1002);
   vi.spyOn(gost, 'syncForwards').mockResolvedValue();
   vi.spyOn(pve, 'containerExists').mockImplementation(async id => live.has(id));
   vi.spyOn(pve, 'guestConfig').mockImplementation(async () => ({ tags: pve.ownershipTag() }));
@@ -42,20 +93,28 @@ beforeEach(() => {
   vi.spyOn(pve, 'pve').mockImplementation(async (path, method) => {
     if (path.endsWith('/tasks')) return [];
     if (path.endsWith('/status/current')) return { status: 'stopped' };
-    if (method === 'DELETE') { live.delete(Number(path.split('/').pop())); return 'UPID:delete'; }
+    if (method === 'DELETE') {
+      live.delete(Number(path.split('/').pop()));
+      return 'UPID:delete';
+    }
     return 'UPID:power';
   });
 });
 afterEach(() => vi.restoreAllMocks());
 afterAll(() => {
-  closeDb(); delete process.env.PDC_DATA_DIR;
+  closeDb();
+  delete process.env.PDC_DATA_DIR;
   if (!directory.startsWith(resolve(tmpdir(), 'pvedc-batch-test-'))) throw new Error('Unsafe cleanup');
   rmSync(directory, { recursive: true, force: true });
 });
 
 it('requires admin confirmation before any destructive changes', async () => {
-  await expect(studentBatch({ ...admin, role: 'student' }, { ids: ['a001'], action: 'delete' })).rejects.toMatchObject({ status: 403 });
-  await expect(studentBatch(admin, { ids: ['a001'], action: 'delete', confirmation: 'wrong' })).rejects.toMatchObject({ status: 400 });
+  await expect(studentBatch({ ...admin, role: 'student' }, { ids: ['a001'], action: 'delete' })).rejects.toMatchObject({
+    status: 403,
+  });
+  await expect(studentBatch(admin, { ids: ['a001'], action: 'delete', confirmation: 'wrong' })).rejects.toMatchObject({
+    status: 400,
+  });
   expect(getDb().prepare('SELECT * FROM jobs').all()).toHaveLength(0);
   expect(students().every(student => student.enabled)).toBe(true);
 });
@@ -63,18 +122,25 @@ it('deduplicates IDs, reports missing resources/accounts and aggregates batch pr
   const result = await studentBatch(admin, { ids: ['a001', 'a001', 'a002', 'a999'], action: 'start' });
   expect(result.items.map(item => item.status)).toEqual(['queued', 'skipped', 'failed']);
   expect(batchStatus(result.batchId)).toMatchObject({ total: 1, queued: 1 });
-  await runJob(job(result.items[0].taskId!)); await runJob(job(result.items[0].taskId!));
+  await runJob(job(result.items[0].taskId!));
+  await runJob(job(result.items[0].taskId!));
   expect(batchStatus(result.batchId)).toMatchObject({ total: 1, succeeded: 1 });
 });
 it('deletes independent students, revokes sessions and preserves recoverable failures', async () => {
   enqueue('start', 'a003', 'resource-a003', {});
   const session = await issueSession('student', 'a001');
-  const result = await studentBatch(admin, { ids: ['a001', 'a002', 'a003', 'a999'], action: 'delete', confirmation: '删除 4 名学生' });
+  const result = await studentBatch(admin, {
+    ids: ['a001', 'a002', 'a003', 'a999'],
+    action: 'delete',
+    confirmation: '删除 4 名学生',
+  });
   expect(result.items.map(item => item.status)).toEqual(['queued', 'queued', 'failed', 'failed']);
   expect(students().find(student => student.id === 'a001')).toMatchObject({ enabled: false, deleting: true });
   expect(students().find(student => student.id === 'a003')?.enabled).toBe(true);
   expect(await authenticateAccess(session.token)).toBeNull();
-  expect(() => saveStudents([{ id: 'a001', name: 'Cannot reenable', className: '', enabled: true, profileId: null }])).toThrow('正在删除');
+  expect(() =>
+    saveStudents([{ id: 'a001', name: 'Cannot reenable', className: '', enabled: true, profileId: null }]),
+  ).toThrow('正在删除');
   await expect(allocate('a002', 'irrelevant-password')).rejects.toThrow('停用');
   for (const item of result.items.filter(item => item.taskId)) {
     for (let step = 0; step < 8 && job(item.taskId!).state !== 'succeeded'; step++) await runJob(job(item.taskId!));
@@ -86,10 +152,16 @@ it('deletes independent students, revokes sessions and preserves recoverable fai
   expect(taskPage({ q: '学生-a001' }, admin).total).toBe(1);
   saveStudents([{ id: 'a001', name: 'New identity', className: '', enabled: true, profileId: null }]);
   expect(taskPage({}, { role: 'student', sub: 'a001', sessionId: 'new' }).total).toBe(0);
-  expect(() => taskForActor(result.items[0].taskId!, { role: 'student', sub: 'a001', sessionId: 'new' })).toThrow('不存在');
+  expect(() => taskForActor(result.items[0].taskId!, { role: 'student', sub: 'a001', sessionId: 'new' })).toThrow(
+    '不存在',
+  );
 });
 it('removes forwards before releasing the resource and deleting the account', async () => {
-  getDb().prepare("INSERT INTO forwards(id,student_id,resource_id,protocol,public_port,target_port,note,state) VALUES('forward','a001','resource-a001','tcp',11001,22,'','ready')").run();
+  getDb()
+    .prepare(
+      "INSERT INTO forwards(id,student_id,resource_id,protocol,public_port,target_port,note,state) VALUES('forward','a001','resource-a001','tcp',11001,22,'','ready')",
+    )
+    .run();
   const result = await studentBatch(admin, { ids: ['a001'], action: 'delete', confirmation: '删除 1 名学生' });
   const id = result.items[0].taskId!;
   vi.mocked(gost.syncForwards).mockRejectedValueOnce(new Error('Relay unavailable'));

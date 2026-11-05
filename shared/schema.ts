@@ -3,42 +3,76 @@ import ipaddr from 'ipaddr.js';
 
 const text = z.string().trim().min(1).max(100);
 const port = z.coerce.number().int().min(1).max(65535);
-export const studentId = z.string().trim().regex(/^[A-Za-z][0-9]{2,31}$/, '学号需为首字母 + 2–32 位数字');
-export const password = z.string().min(10, '密码至少 10 位').max(128).refine(v => !/[\r\n\0:]/.test(v), '密码不能包含冒号、换行或空字符');
-export const claimKey = z.string().trim().min(1, '认领密钥不能为空').max(64, '认领密钥最多 64 位')
+export const studentId = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z][0-9]{2,31}$/, '学号需为首字母 + 2–32 位数字');
+export const password = z
+  .string()
+  .min(10, '密码至少 10 位')
+  .max(128)
+  .refine(v => !/[\r\n\0:]/.test(v), '密码不能包含冒号、换行或空字符');
+export const claimKey = z
+  .string()
+  .trim()
+  .min(1, '认领密钥不能为空')
+  .max(64, '认领密钥最多 64 位')
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, '认领密钥需以字母或数字开头，只能包含字母、数字和 . _ -');
 export const otp = z.string().regex(/^\d{6}$/, '请输入六位验证码');
 
 export const studentSchema = z.object({
-  id: studentId, name: text, className: z.string().trim().max(100).default(''),
-  profileId: z.string().nullable().default(null), enabled: z.boolean().default(true),
+  id: studentId,
+  name: text,
+  className: z.string().trim().max(100).default(''),
+  profileId: z.string().nullable().default(null),
+  enabled: z.boolean().default(true),
   claimKey: z.union([z.literal(''), claimKey]).optional(),
 });
 export type StudentInput = z.infer<typeof studentSchema>;
 
 export const networkSchema = z.object({
-  name: text, mode: z.enum(['nat', 'bridge']), bridge: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,14}$/),
-  cidr: z.string().trim(), gateway: z.ipv4(), start: z.ipv4(), end: z.ipv4(),
-  dns: z.array(z.ipv4()).min(1).max(3), excluded: z.array(z.ipv4()).default([]),
+  name: text,
+  mode: z.enum(['nat', 'bridge']),
+  bridge: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,14}$/),
+  cidr: z.string().trim(),
+  gateway: z.ipv4(),
+  start: z.ipv4(),
+  end: z.ipv4(),
+  dns: z.array(z.ipv4()).min(1).max(3),
+  excluded: z.array(z.ipv4()).default([]),
   vlan: z.number().int().min(1).max(4094).nullable().default(null),
 });
 export type NetworkSpec = z.infer<typeof networkSchema>;
 
 export const machineNetworkSchema = z.object({
-  iface: z.string().regex(/^eth\d{1,2}$/), networkId: z.string().nullable().default(null), name: text,
-  bridge: networkSchema.shape.bridge, cidr: z.string().trim(), ip: z.ipv4(), gateway: z.ipv4().nullable().default(null),
-  dns: z.array(z.ipv4()).max(3).default([]), vlan: z.number().int().min(1).max(4094).nullable().default(null),
-  mac: z.string().regex(/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/, 'MAC 地址格式无效').nullable().default(null),
+  iface: z.string().regex(/^eth\d{1,2}$/),
+  networkId: z.string().nullable().default(null),
+  name: text,
+  bridge: networkSchema.shape.bridge,
+  cidr: z.string().trim(),
+  ip: z.ipv4(),
+  gateway: z.ipv4().nullable().default(null),
+  dns: z.array(z.ipv4()).max(3).default([]),
+  vlan: z.number().int().min(1).max(4094).nullable().default(null),
+  mac: z
+    .string()
+    .regex(/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/, 'MAC 地址格式无效')
+    .nullable()
+    .default(null),
 });
 export type MachineNetwork = z.infer<typeof machineNetworkSchema>;
 
 export const adjustNetworkSchema = z.object({
   iface: z.string().regex(/^eth\d{1,2}$/),
   networkId: z.string().nullable().default(null),
-  bridge: z.string().trim().max(15).default(''), cidr: z.string().trim().default(''), ip: z.string().trim().default(''),
-  gateway: z.string().trim().default(''), dns: z.array(z.ipv4()).max(3).default([]),
+  bridge: z.string().trim().max(15).default(''),
+  cidr: z.string().trim().default(''),
+  ip: z.string().trim().default(''),
+  gateway: z.string().trim().default(''),
+  dns: z.array(z.ipv4()).max(3).default([]),
   vlan: z.number().int().min(1).max(4094).nullable().default(null),
-  mac: z.string().trim().max(17).nullable().default(null), macMode: z.enum(['keep', 'auto', 'set']).default('keep'),
+  mac: z.string().trim().max(17).nullable().default(null),
+  macMode: z.enum(['keep', 'auto', 'set']).default('keep'),
 });
 export type AdjustNetwork = z.infer<typeof adjustNetworkSchema>;
 export const machineAdjustSchema = z.object({
@@ -48,7 +82,10 @@ export const machineAdjustSchema = z.object({
     swap: z.coerce.number().int().min(0).max(1048576),
     disk: z.coerce.number().int().min(4).max(65536),
   }),
-  networks: z.array(adjustNetworkSchema).min(1).max(8)
+  networks: z
+    .array(adjustNetworkSchema)
+    .min(1)
+    .max(8)
     .refine(list => new Set(list.map(entry => entry.iface)).size === list.length, '网卡名称重复')
     .refine(list => list.every((entry, index) => index === 0 || !entry.gateway), '只有第一块网卡可以设置默认网关'),
   confirmShutdown: z.boolean().default(false),
@@ -56,46 +93,89 @@ export const machineAdjustSchema = z.object({
 export type MachineAdjust = z.infer<typeof machineAdjustSchema>;
 
 export const profileSchema = z.object({
-  name: text, published: z.boolean().default(false), enabled: z.boolean().default(true),
+  name: text,
+  published: z.boolean().default(false),
+  enabled: z.boolean().default(true),
   template: z.string().regex(/^[a-zA-Z0-9_-]+:vztmpl\/[a-zA-Z0-9_.-]+$/),
-  distro: z.enum(['ubuntu', 'debian']), storage: z.string().regex(/^[a-zA-Z0-9_-]+$/),
+  distro: z.enum(['ubuntu', 'debian']),
+  storage: z.string().regex(/^[a-zA-Z0-9_-]+$/),
   cores: z.coerce.number().int().min(1).max(128),
   memory: z.coerce.number().int().min(256).max(1048576),
   swap: z.coerce.number().int().min(0).max(1048576).default(0),
   disk: z.coerce.number().int().min(4).max(65536),
-  networkIds: z.array(text).min(1, '至少选择一个网络配置').max(8, '最多支持八块网卡')
+  networkIds: z
+    .array(text)
+    .min(1, '至少选择一个网络配置')
+    .max(8, '最多支持八块网卡')
     .refine(ids => new Set(ids).size === ids.length, '网络配置不能重复'),
   nesting: z.boolean().default(false),
-  initialForwards: z.array(z.object({ protocol: z.enum(['tcp', 'udp']), targetPort: port, publicPort: port.optional(), note: z.string().trim().max(100).default('') })).max(20).default([]),
+  initialForwards: z
+    .array(
+      z.object({
+        protocol: z.enum(['tcp', 'udp']),
+        targetPort: port,
+        publicPort: port.optional(),
+        note: z.string().trim().max(100).default(''),
+      }),
+    )
+    .max(20)
+    .default([]),
 });
 export type ProfileSpec = z.infer<typeof profileSchema>;
 
-export const settingsSchema = z.object({
-  title: text.default('学生计算中心'), publicOrigin: z.union([z.url(), z.literal('')]).default(''),
-  selfSelection: z.boolean().default(false), defaultProfileId: z.string().nullable().default(null),
-  registrationOpen: z.boolean().default(false),
-  cpuOvercommit: z.coerce.number().min(1).max(16).default(1),
-  reserveCpu: z.coerce.number().min(0).max(128).default(2),
-  reserveMemory: z.coerce.number().int().min(0).default(4096),
-  reserveDisk: z.coerce.number().int().min(0).default(10),
-  vmidStart: z.coerce.number().int().min(100).max(999999999).default(1000),
-  vmidEnd: z.coerce.number().int().min(100).max(999999999).default(9999),
-  pveUrl: z.url().default('https://r550:8006'), pveNode: z.string().regex(/^[a-zA-Z0-9_-]+$/).default('r550'),
-  pveTokenId: z.string().default(''), pveTokenSecret: z.string().default(''), pveCa: z.string().default(''),
-  gostApi: z.url().default('http://127.0.0.1:18080'), gostUser: z.string().default('pvedc'), gostPassword: z.string().default(''),
-  relayHost: z.string().trim().max(253).default(''), relayPort: port.default(8443),
-  relayUser: z.string().default(''), relayPassword: z.string().default(''),
-  relayServerName: z.string().trim().default(''), relayCa: z.string().default(''),
-  publicHost: z.string().trim().max(253).default(''),
-  portStart: port.default(20000), portEnd: port.default(29999),
-  reservedPorts: z.array(port).default([]), forwardQuota: z.coerce.number().int().min(0).max(100).default(5),
-  webBindHost: z.ipv4().refine(v => v === '0.0.0.0' || ['private', 'loopback'].includes(ipaddr.IPv4.parse(v).range()), 'Web 通道需绑定 0.0.0.0、回环或私网地址').default('127.0.0.1'), webTunnelPort: port.default(18081), webLocalPort: port.default(3000),
-}).refine(s => s.vmidStart <= s.vmidEnd, 'VMID 范围不正确')
+export const settingsSchema = z
+  .object({
+    title: text.default('学生计算中心'),
+    publicOrigin: z.union([z.url(), z.literal('')]).default(''),
+    selfSelection: z.boolean().default(false),
+    defaultProfileId: z.string().nullable().default(null),
+    registrationOpen: z.boolean().default(false),
+    cpuOvercommit: z.coerce.number().min(1).max(16).default(1),
+    reserveCpu: z.coerce.number().min(0).max(128).default(2),
+    reserveMemory: z.coerce.number().int().min(0).default(4096),
+    reserveDisk: z.coerce.number().int().min(0).default(10),
+    vmidStart: z.coerce.number().int().min(100).max(999999999).default(1000),
+    vmidEnd: z.coerce.number().int().min(100).max(999999999).default(9999),
+    pveUrl: z.url().default('https://r550:8006'),
+    pveNode: z
+      .string()
+      .regex(/^[a-zA-Z0-9_-]+$/)
+      .default('r550'),
+    pveTokenId: z.string().default(''),
+    pveTokenSecret: z.string().default(''),
+    pveCa: z.string().default(''),
+    gostApi: z.url().default('http://127.0.0.1:18080'),
+    gostUser: z.string().default('pvedc'),
+    gostPassword: z.string().default(''),
+    relayHost: z.string().trim().max(253).default(''),
+    relayPort: port.default(8443),
+    relayUser: z.string().default(''),
+    relayPassword: z.string().default(''),
+    relayServerName: z.string().trim().default(''),
+    relayCa: z.string().default(''),
+    publicHost: z.string().trim().max(253).default(''),
+    portStart: port.default(20000),
+    portEnd: port.default(29999),
+    reservedPorts: z.array(port).default([]),
+    forwardQuota: z.coerce.number().int().min(0).max(100).default(5),
+    webBindHost: z
+      .ipv4()
+      .refine(
+        v => v === '0.0.0.0' || ['private', 'loopback'].includes(ipaddr.IPv4.parse(v).range()),
+        'Web 通道需绑定 0.0.0.0、回环或私网地址',
+      )
+      .default('127.0.0.1'),
+    webTunnelPort: port.default(18081),
+    webLocalPort: port.default(3000),
+  })
+  .refine(s => s.vmidStart <= s.vmidEnd, 'VMID 范围不正确')
   .refine(s => s.portStart <= s.portEnd, '公网端口范围不正确')
   .refine(s => !s.publicOrigin || new URL(s.publicOrigin).pathname === '/', '公网地址不能包含路径');
 export type Settings = z.infer<typeof settingsSchema>;
 export const secretKeys = ['pveTokenSecret', 'gostPassword', 'relayPassword'] as const;
-export type SafeSettings = Omit<Settings, typeof secretKeys[number]> & { secrets: Record<typeof secretKeys[number], boolean> };
+export type SafeSettings = Omit<Settings, (typeof secretKeys)[number]> & {
+  secrets: Record<(typeof secretKeys)[number], boolean>;
+};
 export const initialConfigSchema = z.object({
   settings: z.record(z.string(), z.unknown()).default({}),
   networks: z.array(networkSchema.extend({ id: text })).default([]),
@@ -104,36 +184,95 @@ export const initialConfigSchema = z.object({
 });
 
 export const forwardSchema = z.object({
-  protocol: z.enum(['tcp', 'udp']), targetPort: port, publicPort: port.optional(),
+  protocol: z.enum(['tcp', 'udp']),
+  targetPort: port,
+  publicPort: port.optional(),
   note: z.string().trim().max(100).default(''),
 });
 export type ForwardInput = z.infer<typeof forwardSchema>;
 export const guideSchema = z.object({
-  title: text.max(200), markdown: z.string().max(200000), sortOrder: z.coerce.number().int().min(0).max(100000).default(0),
-  defaultCollapsed: z.boolean().default(true), published: z.boolean().default(false),
+  title: text.max(200),
+  markdown: z.string().max(200000),
+  sortOrder: z.coerce.number().int().min(0).max(100000).default(0),
+  defaultCollapsed: z.boolean().default(true),
+  published: z.boolean().default(false),
 });
 export type GuideInput = z.infer<typeof guideSchema>;
-export interface Guide extends GuideInput { id: string; createdAt: number; updatedAt: number }
+export interface Guide extends GuideInput {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+}
 export type Actor = { role: 'admin' | 'student'; sub: string; sessionId: string };
 export type TaskState = 'queued' | 'running' | 'failed' | 'succeeded' | 'attention';
 export type ResourceState = 'reserved' | 'creating' | 'configuring' | 'ready' | 'rebuilding' | 'deleting' | 'failed';
-export interface Student extends Omit<StudentInput, 'claimKey'> { claimed: boolean; deleting: boolean; createdAt: number; resource: Resource | null }
-export interface AdminStudent extends Student { claimKey: string }
-export interface Profile extends ProfileSpec { id: string }
-export interface ProfileSummary { id: string; name: string; cores: number; memory: number; disk: number; distro: 'ubuntu' | 'debian' }
-export interface Network extends NetworkSpec { id: string; ready: boolean; error: string | null }
+export interface Student extends Omit<StudentInput, 'claimKey'> {
+  claimed: boolean;
+  deleting: boolean;
+  createdAt: number;
+  resource: Resource | null;
+}
+export interface AdminStudent extends Student {
+  claimKey: string;
+}
+export interface Profile extends ProfileSpec {
+  id: string;
+}
+export interface ProfileSummary {
+  id: string;
+  name: string;
+  cores: number;
+  memory: number;
+  disk: number;
+  distro: 'ubuntu' | 'debian';
+}
+export interface Network extends NetworkSpec {
+  id: string;
+  ready: boolean;
+  error: string | null;
+}
 export interface Resource {
-  id: string; studentId: string; vmid: number; profileId: string;
-  networks: MachineNetwork[]; spec: ProfileSpec; state: ResourceState; createdAt: number;
+  id: string;
+  studentId: string;
+  vmid: number;
+  profileId: string;
+  networks: MachineNetwork[];
+  spec: ProfileSpec;
+  state: ResourceState;
+  createdAt: number;
 }
 export const primaryNetwork = (resource: Pick<Resource, 'networks'>) => resource.networks[0];
 export interface Task {
-  id: string; type: string; studentId: string | null; resourceId: string | null;
-  state: TaskState; step: string; error: string | null; createdAt: number; updatedAt: number;
+  id: string;
+  type: string;
+  studentId: string | null;
+  resourceId: string | null;
+  state: TaskState;
+  step: string;
+  error: string | null;
+  createdAt: number;
+  updatedAt: number;
 }
 export interface Forward {
-  id: string; studentId: string; resourceId: string; protocol: 'tcp' | 'udp'; targetPort: number;
-  publicPort: number; note: string; enabled: boolean; state: string; error: string | null;
+  id: string;
+  studentId: string;
+  resourceId: string;
+  protocol: 'tcp' | 'udp';
+  targetPort: number;
+  publicPort: number;
+  note: string;
+  enabled: boolean;
+  state: string;
+  error: string | null;
 }
-export interface ListeningPort { protocol: 'tcp' | 'udp'; address: string; port: number; processes: { name: string; pid: number }[] }
-export interface Capacity { count: number; limits: { cpu: number; memory: number; disk: number; ip: number; vmid: number }; limiting: string[] }
+export interface ListeningPort {
+  protocol: 'tcp' | 'udp';
+  address: string;
+  port: number;
+  processes: { name: string; pid: number }[];
+}
+export interface Capacity {
+  count: number;
+  limits: { cpu: number; memory: number; disk: number; ip: number; vmid: number };
+  limiting: string[];
+}

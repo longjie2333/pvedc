@@ -2,7 +2,15 @@ import { z } from 'zod';
 import { getCookie } from 'nitro/h3';
 import { otp, password, studentId } from '../../../shared/schema';
 import { api, actor, body, clientIp, sessionCookies } from '../../lib/http';
-import { beginSetup, checkAdminOtp, finishSetup, hashPassword, initialized, rateLimit, verifyPassword } from '../../lib/auth';
+import {
+  beginSetup,
+  checkAdminOtp,
+  finishSetup,
+  hashPassword,
+  initialized,
+  rateLimit,
+  verifyPassword,
+} from '../../lib/auth';
 import { authenticateAccess, issueSession, logoutSession, refreshSession } from '../../lib/sessions';
 import { audit, getDb } from '../../lib/db';
 import { AppError, ensure } from '../../lib/errors';
@@ -14,7 +22,13 @@ export default api(async event => {
   if (event.req.method === 'GET' && action === 'session') {
     const session = await authenticateAccess(getCookie(event, 'pvedc_session'));
     ensure(session || !getCookie(event, 'pvedc_refresh'), 401, '需要刷新登录状态', 'AUTH_REQUIRED');
-    return { actor: session?.actor || null, expiresAt: session?.expiresAt, refreshExpiresAt: session?.refreshExpiresAt, initialized: initialized(), title: getSettings().title };
+    return {
+      actor: session?.actor || null,
+      expiresAt: session?.expiresAt,
+      refreshExpiresAt: session?.refreshExpiresAt,
+      initialized: initialized(),
+      title: getSettings().title,
+    };
   }
   ensure(event.req.method === 'POST', 405, '请求方法不支持');
   if (action === 'refresh') {
@@ -47,9 +61,10 @@ export default api(async event => {
     rateLimit('student-ip:' + clientIp(event), 300);
     const input = await body(event, z.object({ studentId, password }));
     rateLimit('student-id:' + input.studentId);
-    const student = getDb().prepare('SELECT password_hash, enabled FROM students WHERE id=?').get(input.studentId) as { password_hash: string | null; enabled: number } | undefined;
+    const student = getDb().prepare('SELECT password_hash, enabled FROM students WHERE id=?').get(input.studentId) as
+      { password_hash: string | null; enabled: number } | undefined;
     dummyHash ??= hashPassword('dummy-password-do-not-use');
-    const valid = await verifyPassword(student?.password_hash || await dummyHash, input.password);
+    const valid = await verifyPassword(student?.password_hash || (await dummyHash), input.password);
     ensure(valid && student?.enabled && student.password_hash, 401, '学号或密码不正确');
     const session = await issueSession('student', input.studentId);
     sessionCookies(event, session);

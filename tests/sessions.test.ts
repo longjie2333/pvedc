@@ -9,15 +9,19 @@ import { signingKey } from '../server/lib/crypto';
 
 const directory = mkdtempSync(resolve(tmpdir(), 'pvedc-sessions-test-'));
 const start = new Date('2026-10-10T00:00:00Z');
-beforeAll(() => { process.env.PDC_DATA_DIR = directory; });
+beforeAll(() => {
+  process.env.PDC_DATA_DIR = directory;
+});
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(start);
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(start);
   getDb().prepare('DELETE FROM sessions').run();
   getDb().prepare('DELETE FROM students').run();
 });
 afterEach(() => vi.useRealTimers());
 afterAll(() => {
-  closeDb(); delete process.env.PDC_DATA_DIR;
+  closeDb();
+  delete process.env.PDC_DATA_DIR;
   if (!directory.startsWith(resolve(tmpdir(), 'pvedc-sessions-test-'))) throw new Error('Unsafe cleanup path');
   rmSync(directory, { recursive: true, force: true });
 });
@@ -25,15 +29,22 @@ afterAll(() => {
 describe('rotating sessions', () => {
   it('issues separate one-hour access and seven-day refresh JWTs', async () => {
     const session = await issueSession('admin', 'admin');
-    const access = decodeJwt(session.token), refresh = decodeJwt(session.refreshToken);
+    const access = decodeJwt(session.token),
+      refresh = decodeJwt(session.refreshToken);
     expect(access.exp! - access.iat!).toBe(3600);
     expect(refresh.exp! - refresh.iat!).toBe(7 * 86400);
     expect(access.aud).not.toBe(refresh.aud);
     expect((await authenticateAccess(session.token))?.actor).toEqual(session.actor);
     expect(await authenticateAccess(session.refreshToken)).toBeNull();
     await expect(refreshSession(session.token)).rejects.toMatchObject({ status: 401 });
-    const legacy = await new SignJWT({ role: 'admin' }).setProtectedHeader({ alg: 'HS256' }).setIssuer('pvedc').setAudience('pvedc-web')
-      .setJti(session.actor.sessionId).setSubject('admin').setExpirationTime(access.exp!).sign(signingKey());
+    const legacy = await new SignJWT({ role: 'admin' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer('pvedc')
+      .setAudience('pvedc-web')
+      .setJti(session.actor.sessionId)
+      .setSubject('admin')
+      .setExpirationTime(access.exp!)
+      .sign(signingKey());
     expect(await authenticateAccess(legacy)).toBeNull();
   });
   it('refreshes expired access without extending the absolute login deadline', async () => {

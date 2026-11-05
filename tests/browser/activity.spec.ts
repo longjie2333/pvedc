@@ -3,25 +3,48 @@ import { test, expect } from '@playwright/test';
 test('activity tabs fetch only the active page and preserve independent query state', async ({ page }) => {
   await page.clock.install();
   const calls: string[] = [];
-  await page.route('**/api/auth/session', route => route.fulfill({ json: { actor: { role: 'admin', sub: 'admin', sessionId: 'test' }, initialized: true, title: '分页测试', expiresAt: Math.floor(Date.now() / 1000) + 3600 } }));
+  await page.route('**/api/auth/session', route =>
+    route.fulfill({
+      json: {
+        actor: { role: 'admin', sub: 'admin', sessionId: 'test' },
+        initialized: true,
+        title: '分页测试',
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      },
+    }),
+  );
   await page.route('**/api/admin/**', route => {
-    const url = new URL(route.request().url()), action = url.pathname.split('/').pop();
-    if (action === 'overview') return route.fulfill({ json: { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] } });
+    const url = new URL(route.request().url()),
+      action = url.pathname.split('/').pop();
+    if (action === 'overview')
+      return route.fulfill({
+        json: { students: [], resources: [], taskCounts: { attention: 0 }, profiles: [], networks: [], forwards: [] },
+      });
     if (action === 'settings') return route.fulfill({ json: { registrationOpen: false } });
     if (action === 'actions') return route.fulfill({ json: [{ action: 'resource.start' }] });
     if (!['tasks', 'audit'].includes(action || '')) return route.fulfill({ json: [] });
     calls.push(action + url.search);
-    const current = Number(url.searchParams.get('page')), size = Number(url.searchParams.get('pageSize'));
+    const current = Number(url.searchParams.get('page')),
+      size = Number(url.searchParams.get('pageSize'));
     const total = url.searchParams.get('q') ? 1 : 55;
     const items = Array.from({ length: Math.max(0, Math.min(size, total - (current - 1) * size)) }, (_, offset) => {
       const index = (current - 1) * size + offset + 1;
-      return action === 'tasks' ? { id: String(index), type: 'start', studentId: 'a' + String(index).padStart(5, '0'), state: 'succeeded', step: 'complete', createdAt: 100, updatedAt: 100 }
+      return action === 'tasks'
+        ? {
+            id: String(index),
+            type: 'start',
+            studentId: 'a' + String(index).padStart(5, '0'),
+            state: 'succeeded',
+            step: 'complete',
+            createdAt: 100,
+            updatedAt: 100,
+          }
         : { id: index, actor: 'admin', action: 'resource.start', target: '审计目标-' + index, created_at: 100 };
     });
     return route.fulfill({ json: { items, total, page: current, pageSize: size } });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(calls).toEqual([]);
   await page.getByRole('link', { name: '任务与审计', exact: true }).click();
   const tasks = page.getByRole('tabpanel', { name: '任务记录', exact: true });

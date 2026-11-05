@@ -5,7 +5,9 @@ import { getSettings } from '../lib/settings';
 import { initializeSeed } from '../lib/seed';
 
 export default definePlugin(app => {
-  initializeSeed(); getSettings(); initializeAuth();
+  initializeSeed();
+  getSettings();
+  initializeAuth();
   const stop = startWorker();
   app.hooks.hook('close', stop);
 });

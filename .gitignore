@@ -14,3 +14,8 @@ __pycache__/
 *.pyc
 .idea
 .zcode*
+.slidep
+.workbuddy
+output
+thesis
+mock

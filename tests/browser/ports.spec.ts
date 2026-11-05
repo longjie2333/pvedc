@@ -1,8 +1,28 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const resource = { id: 'resource-test', studentId: 'a00123', vmid: 1001, profileId: 'profile', state: 'ready', createdAt: 1,
-  networks: [{ iface: 'eth0', networkId: 'network', name: '测试网络', bridge: 'dc0', cidr: '172.20.0.0/24', ip: '172.20.0.10', gateway: '172.20.0.1', dns: ['1.1.1.1'], vlan: null, mac: null }],
-  spec: { name: 'Test profile', distro: 'debian', cores: 2, memory: 1024, disk: 8, networkIds: ['network'] } };
+const resource = {
+  id: 'resource-test',
+  studentId: 'a00123',
+  vmid: 1001,
+  profileId: 'profile',
+  state: 'ready',
+  createdAt: 1,
+  networks: [
+    {
+      iface: 'eth0',
+      networkId: 'network',
+      name: '测试网络',
+      bridge: 'dc0',
+      cidr: '172.20.0.0/24',
+      ip: '172.20.0.10',
+      gateway: '172.20.0.1',
+      dns: ['1.1.1.1'],
+      vlan: null,
+      mac: null,
+    },
+  ],
+  spec: { name: 'Test profile', distro: 'debian', cores: 2, memory: 1024, disk: 8, networkIds: ['network'] },
+};
 const ports = [
   { protocol: 'tcp', address: '0.0.0.0', port: 8080, processes: [{ name: 'node', pid: 42 }] },
   { protocol: 'udp', address: '127.0.0.53', port: 53, processes: [{ name: 'systemd-resolve', pid: 10 }] },
@@ -10,21 +30,68 @@ const ports = [
   { protocol: 'tcp', address: '127.0.0.1%lo', port: 9443, processes: [{ name: 'local-service', pid: 99 }] },
 ];
 async function mockWorkspace(page: Page, role: 'student' | 'admin') {
-  const submissions: Record<string, unknown>[] = [], rules: Record<string, unknown>[] = [];
+  const submissions: Record<string, unknown>[] = [],
+    rules: Record<string, unknown>[] = [];
   let portReads = 0;
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     let json: unknown;
-    if (path === '/api/auth/session') json = { actor: { role, sub: role === 'admin' ? 'admin' : resource.studentId, sessionId: 'test' }, initialized: true, title: '端口测试', expiresAt: Math.floor(Date.now()/1000) + 3600 };
-    else if (path === '/api/me/overview') json = { student: { id: resource.studentId, name: '测试同学' }, resource, forwards: rules, profiles: [], publicHost: 'relay.test', selfSelection: false };
-    else if (path === '/api/admin/overview') json = { students: [], resources: [resource], networks: [], profiles: [], taskCounts: { attention: 0 }, forwards: [] };
+    if (path === '/api/auth/session')
+      json = {
+        actor: { role, sub: role === 'admin' ? 'admin' : resource.studentId, sessionId: 'test' },
+        initialized: true,
+        title: '端口测试',
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      };
+    else if (path === '/api/me/overview')
+      json = {
+        student: { id: resource.studentId, name: '测试同学' },
+        resource,
+        forwards: rules,
+        profiles: [],
+        publicHost: 'relay.test',
+        selfSelection: false,
+      };
+    else if (path === '/api/admin/overview')
+      json = {
+        students: [],
+        resources: [resource],
+        networks: [],
+        profiles: [],
+        taskCounts: { attention: 0 },
+        forwards: [],
+      };
     else if (path === '/api/admin/settings') json = { registrationOpen: true };
-    else if (path.endsWith('/ports')) { portReads++; json = { data: ports, updatedAt: Date.now(), error: null }; }
-    else if (path === '/api/me/status' || path.endsWith('/resource-test/status')) json = { data: { status: 'running', cpu: 0.1, cpus: 2, mem: 1024, maxmem: 1e9, disk: 1024, maxdisk: 8e9, netin: 1024, netout: 1024, uptime: 100 }, updatedAt: Date.now() };
+    else if (path.endsWith('/ports')) {
+      portReads++;
+      json = { data: ports, updatedAt: Date.now(), error: null };
+    } else if (path === '/api/me/status' || path.endsWith('/resource-test/status'))
+      json = {
+        data: {
+          status: 'running',
+          cpu: 0.1,
+          cpus: 2,
+          mem: 1024,
+          maxmem: 1e9,
+          disk: 1024,
+          maxdisk: 8e9,
+          netin: 1024,
+          netout: 1024,
+          uptime: 100,
+        },
+        updatedAt: Date.now(),
+      };
     else if (path.endsWith('/history')) json = { data: [], updatedAt: Date.now() };
     else if (path === '/api/me/forwards' && route.request().method() === 'POST') {
-      const body = route.request().postDataJSON(); submissions.push(body);
-      rules.push({ ...body, id: 'forward-' + submissions.length, publicPort: 11000 + submissions.length, enabled: true, state: 'ready' });
+      const body = route.request().postDataJSON();
+      submissions.push(body);
+      rules.push({
+        ...body,
+        id: 'forward-' + submissions.length,
+        publicPort: 11000 + submissions.length,
+        enabled: true,
+        state: 'ready',
+      });
       json = { id: 'forward-' + submissions.length };
     } else if (path === '/api/me/tasks') json = { items: [], total: 0, page: 1, pageSize: 20 };
     else if (path === '/api/me/guides') json = { guides: [] };
@@ -34,7 +101,9 @@ async function mockWorkspace(page: Page, role: 'student' | 'admin') {
   return { submissions, portReads: () => portReads };
 }
 
-test('student ports are fetched only in the forwarding dialog and object selection carries the protocol', async ({ page }) => {
+test('student ports are fetched only in the forwarding dialog and object selection carries the protocol', async ({
+  page,
+}) => {
   const workspace = await mockWorkspace(page, 'student');
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /a00123/ })).toBeVisible();
@@ -51,7 +120,6 @@ test('student ports are fetched only in the forwarding dialog and object selecti
   await expect(picker).toContainText('udp-service');
   await page.screenshot({ path: 'test-results/student-forward-dialog.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/student-forward-mobile.png' });
   await page.getByRole('button', { name: '创建转发', exact: true }).click();

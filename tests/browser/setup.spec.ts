@@ -12,7 +12,9 @@ test('first visit automatically creates and displays the TOTP key and QR code', 
   await expect(code).toBeDisabled();
   await page.getByRole('checkbox', { name: '我已安全保存验证密钥' }).check();
   const valid = generateSync({ secret: setup.secret });
-  const validCodes = [-30, 0, 30].map(offset => generateSync({ secret: setup.secret, epoch: Math.floor(Date.now() / 1000) + offset }));
+  const validCodes = [-30, 0, 30].map(offset =>
+    generateSync({ secret: setup.secret, epoch: Math.floor(Date.now() / 1000) + offset }),
+  );
   const invalid = ['000000', '111111', '222222', '333333'].find(value => !validCodes.includes(value))!;
   const failed = page.waitForResponse(r => r.url().endsWith('/api/setup/complete'));
   await code.fill(invalid);
@@ -20,13 +22,15 @@ test('first visit automatically creates and displays the TOTP key and QR code', 
   await expect(code).toHaveValue('');
   await expect(code).toBeFocused();
   let requests = 0;
-  page.on('request', request => { if (request.url().endsWith('/api/setup/complete')) requests++; });
+  page.on('request', request => {
+    if (request.url().endsWith('/api/setup/complete')) requests++;
+  });
   await code.fill(valid.slice(0, 5));
   expect(requests).toBe(0);
   await code.fill(valid);
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   expect(requests).toBe(1);
   await page.reload();
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
   await expect(page.getByAltText('管理员 TOTP 绑定二维码')).toHaveCount(0);
 });

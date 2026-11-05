@@ -5,13 +5,15 @@ test('administrator login, roster, network, profiles and responsive settings', a
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button', { name: '管理员入口' }).click();
-  await page.getByRole('textbox', { name: '动态验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
-  await expect(page.getByRole('heading', { name: '计算资源总览' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '宿主机总体状况' })).toBeVisible();
-  await expect(page.getByText(/Browser Test CPU/)).toBeVisible();
-  await expect(page.getByText('12.0%', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '宿主网络 · KiB/s' })).toBeVisible();
+  await page.getByRole('button', { name: '管理员登录' }).click();
+  await page
+    .getByRole('textbox', { name: '动态验证码', exact: true })
+    .fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }));
+  await expect(page.getByRole('heading', { name: '总览', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '宿主机 r550', exact: true })).toBeVisible();
+  await expect(page.getByText('12.0% · 24 核', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: '网络', exact: true }).click();
+  await expect(page.getByText('发送', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/admin-overview.png', fullPage: true });
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
   await page.getByRole('button', { name: '添加学生' }).click();
@@ -21,15 +23,24 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.getByLabel('认领密钥', { exact: true }).fill('Local-key-1');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByText('本地测试同学', { exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Local-key-1', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '编辑' }).first().click();
+  await expect(page.getByText('Local-key-1', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '显示本地测试同学的认领密钥', exact: true }).click();
+  await expect(page.getByText('Local-key-1', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '操作 本地测试同学', exact: true }).click();
+  await page.getByRole('menuitem', { name: '编辑', exact: true }).click();
   await expect(page.getByLabel('认领密钥', { exact: true })).toHaveValue('Local-key-1');
   await page.getByRole('button', { name: '取消', exact: true }).click();
   await page.getByRole('button', { name: '导入名单' }).click();
   await page.getByLabel('学生名单 CSV').fill('学号,姓名,班级,认领密钥\na00990002,批量测试同学,集成测试班,Batch-key-1');
   await page.getByRole('button', { name: '导入', exact: true }).click();
   await expect(page.getByText('批量测试同学', { exact: true })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Batch-key-1', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '显示批量测试同学的认领密钥', exact: true }).click();
+  await expect(page.getByText('Batch-key-1', { exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: /^已认领/ }).click();
+  await expect(page.getByText('没有匹配的学生', { exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: /^未认领/ }).click();
+  await expect(page.getByText('批量测试同学', { exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: /^全部/ }).click();
   await page.getByRole('link', { name: '网络与地址池', exact: true }).click();
   await page.getByRole('button', { name: '添加配置' }).click();
   await page.getByLabel('网络名称').fill('仅本地测试网络');
@@ -63,11 +74,14 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await page.getByRole('combobox', { name: '系统盘存储', exact: true }).click();
   await page.getByRole('option', { name: /local-lvm/ }).click();
   const cpu = page.getByRole('combobox', { name: 'CPU 核数', exact: true });
-  await cpu.fill('6'); await cpu.press('Tab');
+  await cpu.fill('6');
+  await cpu.press('Tab');
   const memory = page.getByRole('combobox', { name: '内存 MiB', exact: true });
-  await memory.fill('3072'); await memory.press('Tab');
+  await memory.fill('3072');
+  await memory.press('Tab');
   const disk = page.getByRole('combobox', { name: '系统盘 GiB', exact: true });
-  await disk.fill('12'); await disk.press('Tab');
+  await disk.fill('12');
+  await disk.press('Tab');
   await page.getByRole('combobox', { name: '网卡 eth0', exact: true }).click();
   await page.getByRole('option', { name: /^仅本地测试网络（/ }).click();
   await page.getByRole('button', { name: '添加网卡' }).click();
@@ -79,7 +93,9 @@ test('administrator login, roster, network, profiles and responsive settings', a
   const overview = await (await page.request.get('/api/admin/overview')).json();
   const savedProfile = overview.profiles.find((profile: { name: string }) => profile.name === '仅本地测试规格');
   expect(savedProfile).toMatchObject({ cores: 6, memory: 3072, disk: 12 });
-  const networkIds = overview.networks.filter((network: { name: string }) => network.name.includes('仅本地测试网络')).map((network: { id: string }) => network.id);
+  const networkIds = overview.networks
+    .filter((network: { name: string }) => network.name.includes('仅本地测试网络'))
+    .map((network: { id: string }) => network.id);
   expect(savedProfile.networkIds).toEqual([networkIds[0], networkIds[1]]);
   await page.getByRole('button', { name: '设为默认' }).click();
   await expect(page.getByText('默认配置', { exact: true })).toBeVisible();
@@ -91,7 +107,10 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await expect(page.getByRole('heading', { name: '本机 gost API', exact: true })).toBeVisible();
   await expect(page.getByLabel('PVE API 地址', { exact: true })).toHaveCount(0);
   let credentialReads = 0;
-  await page.route('**/api/admin/gost/authorization', route => { credentialReads++; return route.fulfill({ json: { authorization: 'Basic dGVzdDp0ZXN0' } }); });
+  await page.route('**/api/admin/gost/authorization', route => {
+    credentialReads++;
+    return route.fulfill({ json: { authorization: 'Basic dGVzdDp0ZXN0' } });
+  });
   expect(credentialReads).toBe(0);
   await expect(page.getByLabel('Authorization 请求头')).toHaveCount(0);
   await page.getByRole('button', { name: '显示调用凭据', exact: true }).click();
@@ -101,7 +120,9 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await expect(page.getByLabel('Authorization 请求头')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/admin-forwarding.png', fullPage: true });
   await page.getByLabel('Relay 主机', { exact: true }).fill('relay.example.test');
-  const saved = page.waitForRequest(request => request.url().endsWith('/api/admin/settings') && request.method() === 'PUT');
+  const saved = page.waitForRequest(
+    request => request.url().endsWith('/api/admin/settings') && request.method() === 'PUT',
+  );
   await page.getByRole('button', { name: '保存公网配置', exact: true }).click();
   const patch = (await saved).postDataJSON();
   expect(patch.relayHost).toBe('relay.example.test');
@@ -112,24 +133,34 @@ test('administrator login, roster, network, profiles and responsive settings', a
   // Missing Relay credentials fail before any external connection is attempted.
   await page.getByRole('button', { name: '应用 gost 配置', exact: true }).click();
   await expect(page.getByRole('dialog', { name: '任务已提交', exact: true })).toBeVisible();
-  await expect(page.getByRole('dialog', { name: '应用 gost 配置需要处理', exact: true })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('dialog', { name: '应用 gost 配置需要处理', exact: true })).toBeVisible({
+    timeout: 10000,
+  });
   await page.getByLabel('API 地址', { exact: true }).fill('http://127.0.0.1:19080');
   await page.getByLabel('API 用户名', { exact: true }).fill('new-api-user');
   await page.getByLabel('API 密码', { exact: true }).fill('temporary-api-password');
   const synchronized = page.waitForRequest(request => request.url().endsWith('/api/admin/gost/api'));
   await page.getByRole('button', { name: '保存并同步到宿主机', exact: true }).click();
-  expect((await synchronized).postDataJSON()).toEqual({ gostApi: 'http://127.0.0.1:19080', gostUser: 'new-api-user', gostPassword: 'temporary-api-password' });
+  expect((await synchronized).postDataJSON()).toEqual({
+    gostApi: 'http://127.0.0.1:19080',
+    gostUser: 'new-api-user',
+    gostPassword: 'temporary-api-password',
+  });
   await expect(page.getByLabel('API 密码', { exact: true })).toHaveValue('');
   // The isolated browser service has no host config; it must fail without committing the candidate.
-  await expect(page.getByRole('dialog', { name: '同步 gost API需要处理', exact: true })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('dialog', { name: '同步 gost API需要处理', exact: true })).toBeVisible({
+    timeout: 10000,
+  });
   await expect(page.getByText('当前生效地址：http://127.0.0.1:18080 · 用户：pvedc')).toBeVisible();
   await page.getByRole('link', { name: '平台设置', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(() => page.locator('.sidebar').evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('link', { name: '学生名单', exact: true })).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-settings.png', fullPage: true });
   const rotation = page.waitForResponse(response => response.url().endsWith('/api/auth/rotate-begin'));
-  await page.getByRole('textbox', { name: '当前验证码', exact: true }).fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', epoch: Math.floor(Date.now() / 1000) + 30 }));
+  await page
+    .getByRole('textbox', { name: '当前验证码', exact: true })
+    .fill(generateSync({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', epoch: Math.floor(Date.now() / 1000) + 30 }));
   const rotated = await (await rotation).json();
   await expect(page.getByAltText('新的 TOTP 二维码')).toBeVisible();
   const newCode = page.getByRole('textbox', { name: '新密钥验证码', exact: true });
@@ -137,21 +168,23 @@ test('administrator login, roster, network, profiles and responsive settings', a
   await newCode.fill(generateSync({ secret: rotated.secret }));
   await expect(page.getByAltText('新的 TOTP 二维码')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: '当前验证码', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '打开导航', exact: true }).click();
+  await page.getByRole('button', { name: '切换导航', exact: true }).click();
   await page.getByRole('link', { name: '学生名单', exact: true }).click();
-  await page.getByRole('button', { name: '全选', exact: true }).click();
-  await expect(page.getByText('已选择 2 人', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '反选', exact: true }).click();
-  await expect(page.getByText('已选择 0 人', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '全选', exact: true }).click();
-  await page.getByLabel('搜索学生').fill('批量');
-  await expect(page.getByText('已选择 0 人', { exact: true })).toBeVisible();
+  const toolbar = page.getByRole('toolbar', { name: '批量操作', exact: true });
   await page.getByRole('checkbox', { name: '全选当前结果', exact: true }).check();
-  await page.getByRole('button', { name: '批量启动机器', exact: true }).click();
+  await expect(toolbar.getByText('已选择 2 人', { exact: true })).toBeVisible();
+  await toolbar.getByRole('button', { name: '反选', exact: true }).click();
+  await expect(toolbar).toHaveCount(0);
+  await page.getByRole('checkbox', { name: '全选当前结果', exact: true }).check();
+  await page.getByLabel('搜索学生').fill('批量');
+  await expect(toolbar).toHaveCount(0);
+  await page.getByRole('checkbox', { name: '全选当前结果', exact: true }).check();
+  await toolbar.getByRole('button', { name: '电源', exact: true }).click();
+  await page.getByRole('menuitem', { name: '启动机器', exact: true }).click();
   await page.getByRole('button', { name: '确认启动机器', exact: true }).click();
   await expect(page.getByRole('cell', { name: /已跳过/ })).toBeVisible();
   await page.getByRole('checkbox', { name: '全选当前结果', exact: true }).check();
-  await page.getByRole('button', { name: '批量删除学生', exact: true }).click();
+  await toolbar.getByRole('button', { name: '删除学生', exact: true }).click();
   await expect(page.getByRole('button', { name: '确认删除学生', exact: true })).toBeDisabled();
   await page.getByLabel('请输入“删除 1 名学生”').fill('删除 1 名学生');
   await page.getByRole('button', { name: '确认删除学生', exact: true }).click();

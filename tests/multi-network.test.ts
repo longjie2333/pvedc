@@ -5,11 +5,22 @@ import { resolve } from 'node:path';
 
 vi.mock('../server/lib/inventory', async importOriginal => {
   const actual = await importOriginal<typeof import('../server/lib/inventory')>();
-  return { ...actual, inventory: async () => ({
-    entries: [{ type: 'storage', storage: 'local-lvm', node: 'r550', status: 'available', maxdisk: 64 * 1073741824, disk: 0 }],
-    node: { cpu: 0, cpuinfo: { cpus: 8 }, memory: { total: 8 * 1073741824, free: 7 * 1073741824, used: 1073741824 }, uptime: 1000 },
-    interfaces: [{ iface: 'vmbr0', address: '10.1.229.140', type: 'bridge' }], configs: [],
-  }) };
+  return {
+    ...actual,
+    inventory: async () => ({
+      entries: [
+        { type: 'storage', storage: 'local-lvm', node: 'r550', status: 'available', maxdisk: 64 * 1073741824, disk: 0 },
+      ],
+      node: {
+        cpu: 0,
+        cpuinfo: { cpus: 8 },
+        memory: { total: 8 * 1073741824, free: 7 * 1073741824, used: 1073741824 },
+        uptime: 1000,
+      },
+      interfaces: [{ iface: 'vmbr0', address: '10.1.229.140', type: 'bridge' }],
+      configs: [],
+    }),
+  };
 });
 vi.mock('../server/lib/helper', () => ({ helper: vi.fn(async () => ({})) }));
 import { allocate } from '../server/lib/provision';
@@ -23,10 +34,45 @@ import { runJob } from '../server/lib/worker';
 const directory = mkdtempSync(resolve(tmpdir(), 'pvedc-multi-network-test-'));
 beforeAll(() => {
   process.env.PDC_DATA_DIR = directory;
-  const first = saveNetwork({ name: '校内私网', mode: 'nat', bridge: 'dcone', cidr: '172.16.40.0/24', gateway: '172.16.40.1', start: '172.16.40.10', end: '172.16.40.200', dns: ['223.5.5.5'], excluded: [], vlan: null });
-  const second = saveNetwork({ name: '实验桥接', mode: 'nat', bridge: 'dctwo', cidr: '172.16.41.0/24', gateway: '172.16.41.1', start: '172.16.41.20', end: '172.16.41.200', dns: ['1.1.1.1'], excluded: [], vlan: null });
+  const first = saveNetwork({
+    name: '校内私网',
+    mode: 'nat',
+    bridge: 'dcone',
+    cidr: '172.16.40.0/24',
+    gateway: '172.16.40.1',
+    start: '172.16.40.10',
+    end: '172.16.40.200',
+    dns: ['223.5.5.5'],
+    excluded: [],
+    vlan: null,
+  });
+  const second = saveNetwork({
+    name: '实验桥接',
+    mode: 'nat',
+    bridge: 'dctwo',
+    cidr: '172.16.41.0/24',
+    gateway: '172.16.41.1',
+    start: '172.16.41.20',
+    end: '172.16.41.200',
+    dns: ['1.1.1.1'],
+    excluded: [],
+    vlan: null,
+  });
   getDb().prepare('UPDATE networks SET ready=1').run();
-  const profile = saveProfile({ name: 'Dual', published: true, enabled: true, template: 'local:vztmpl/debian-13-test.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 2, memory: 1024, swap: 0, disk: 8, networkIds: [first.id, second.id], nesting: false }).id;
+  const profile = saveProfile({
+    name: 'Dual',
+    published: true,
+    enabled: true,
+    template: 'local:vztmpl/debian-13-test.tar.zst',
+    distro: 'debian',
+    storage: 'local-lvm',
+    cores: 2,
+    memory: 1024,
+    swap: 0,
+    disk: 8,
+    networkIds: [first.id, second.id],
+    nesting: false,
+  }).id;
   saveSettings({ ...getSettings(), defaultProfileId: profile, registrationOpen: true });
   saveStudents([{ id: 'm0001', name: 'Dual student', className: '', profileId: null, enabled: true }]);
   vi.spyOn(pveClient, 'pve').mockImplementation(async (path, method, params) => {
@@ -44,7 +90,9 @@ beforeAll(() => {
   }));
 });
 afterAll(() => {
-  closeDb(); delete process.env.PDC_DATA_DIR; vi.restoreAllMocks();
+  closeDb();
+  delete process.env.PDC_DATA_DIR;
+  vi.restoreAllMocks();
   if (!directory.startsWith(resolve(tmpdir(), 'pvedc-multi-network-test-'))) throw new Error('Unsafe cleanup');
   rmSync(directory, { recursive: true, force: true });
 });
@@ -56,7 +104,13 @@ it('allocates one address per network and creates one interface per entry', asyn
   expect(resource.networks.map(entry => entry.ip)).toEqual(['172.16.40.10', '172.16.41.20']);
   expect(resource.networks[0]).toMatchObject({ gateway: '172.16.40.1', dns: ['223.5.5.5'], mac: null });
   expect(resource.networks[1]).toMatchObject({ gateway: null, dns: [] });
-  for (let step = 0; step < 10 && (getDb().prepare('SELECT state FROM jobs WHERE id=?').get(result.taskId) as { state: string }).state !== 'succeeded'; step++) {
+  for (
+    let step = 0;
+    step < 10 &&
+    (getDb().prepare('SELECT state FROM jobs WHERE id=?').get(result.taskId) as { state: string }).state !==
+      'succeeded';
+    step++
+  ) {
     await runJob(getDb().prepare('SELECT * FROM jobs WHERE id=?').get(result.taskId) as FullJobRow);
   }
   const calls = vi.mocked(pveClient.pve).mock.calls;
@@ -74,9 +128,17 @@ it('keeps resources on the multi-interface snapshot when capacities are recalcul
   const { budgetFor } = await import('../server/lib/inventory');
   const { profiles } = await import('../server/lib/records');
   const snapshot = {
-    entries: [{ type: 'storage', storage: 'local-lvm', node: 'r550', status: 'available', maxdisk: 64 * 1073741824, disk: 0 }],
-    node: { cpu: 0, cpuinfo: { cpus: 8 }, memory: { total: 8 * 1073741824, free: 7 * 1073741824, used: 1073741824 }, uptime: 1000 },
-    interfaces: [{ iface: 'vmbr0', address: '10.1.229.140', type: 'bridge' }], configs: [],
+    entries: [
+      { type: 'storage', storage: 'local-lvm', node: 'r550', status: 'available', maxdisk: 64 * 1073741824, disk: 0 },
+    ],
+    node: {
+      cpu: 0,
+      cpuinfo: { cpus: 8 },
+      memory: { total: 8 * 1073741824, free: 7 * 1073741824, used: 1073741824 },
+      uptime: 1000,
+    },
+    interfaces: [{ iface: 'vmbr0', address: '10.1.229.140', type: 'bridge' }],
+    configs: [],
   } as never;
   const allocation = budgetFor(profiles()[0], snapshot);
   expect(allocation.networks.map(entry => entry.ip)).toEqual(['172.16.40.11', '172.16.41.21']);

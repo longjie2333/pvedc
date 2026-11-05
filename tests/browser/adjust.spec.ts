@@ -1,13 +1,68 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const network = (id: string, name: string) => ({ id, name, mode: 'nat', bridge: 'dc' + id, cidr: '172.20.0.0/24', gateway: '172.20.0.1', start: '172.20.0.10', end: '172.20.0.200', dns: ['1.1.1.1'], excluded: [], vlan: null, ready: true, error: null });
+const network = (id: string, name: string) => ({
+  id,
+  name,
+  mode: 'nat',
+  bridge: 'dc' + id,
+  cidr: '172.20.0.0/24',
+  gateway: '172.20.0.1',
+  start: '172.20.0.10',
+  end: '172.20.0.200',
+  dns: ['1.1.1.1'],
+  excluded: [],
+  vlan: null,
+  ready: true,
+  error: null,
+});
 const resources = [
   {
-    id: 'resource-test', studentId: 'a00123', vmid: 1001, profileId: 'profile', state: 'ready', createdAt: 1,
-    spec: { name: '测试配置', published: true, enabled: true, template: 'local:vztmpl/debian.tar.zst', distro: 'debian', storage: 'local-lvm', cores: 2, memory: 1024, swap: 0, disk: 8, networkIds: ['network-1'], nesting: false, initialForwards: [] },
+    id: 'resource-test',
+    studentId: 'a00123',
+    vmid: 1001,
+    profileId: 'profile',
+    state: 'ready',
+    createdAt: 1,
+    spec: {
+      name: '测试配置',
+      published: true,
+      enabled: true,
+      template: 'local:vztmpl/debian.tar.zst',
+      distro: 'debian',
+      storage: 'local-lvm',
+      cores: 2,
+      memory: 1024,
+      swap: 0,
+      disk: 8,
+      networkIds: ['network-1'],
+      nesting: false,
+      initialForwards: [],
+    },
     networks: [
-      { iface: 'eth0', networkId: 'network-1', name: '测试网络一', bridge: 'dc1', cidr: '172.20.0.0/24', ip: '172.20.0.10', gateway: '172.20.0.1', dns: ['1.1.1.1'], vlan: null, mac: 'AA:BB:CC:DD:EE:01' },
-      { iface: 'eth1', networkId: 'network-2', name: '测试网络二', bridge: 'dc2', cidr: '172.25.0.0/24', ip: '172.25.0.10', gateway: null, dns: [], vlan: null, mac: 'AA:BB:CC:DD:EE:02' },
+      {
+        iface: 'eth0',
+        networkId: 'network-1',
+        name: '测试网络一',
+        bridge: 'dc1',
+        cidr: '172.20.0.0/24',
+        ip: '172.20.0.10',
+        gateway: '172.20.0.1',
+        dns: ['1.1.1.1'],
+        vlan: null,
+        mac: 'AA:BB:CC:DD:EE:01',
+      },
+      {
+        iface: 'eth1',
+        networkId: 'network-2',
+        name: '测试网络二',
+        bridge: 'dc2',
+        cidr: '172.25.0.0/24',
+        ip: '172.25.0.10',
+        gateway: null,
+        dns: [],
+        vlan: null,
+        mac: 'AA:BB:CC:DD:EE:02',
+      },
     ],
   },
 ];
@@ -17,18 +72,51 @@ async function mockWorkspace(page: Page, status: string) {
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     let json: unknown;
-    if (path === '/api/auth/session') json = { actor: { role: 'admin', sub: 'admin', sessionId: 'test' }, initialized: true, title: '调整测试', expiresAt: Math.floor(Date.now() / 1000) + 3600 };
-    else if (path === '/api/admin/overview') json = { students: [], resources, networks: [network('network-1', '测试网络一'), network('network-2', '测试网络二'), network('network-3', '测试网络三')], profiles: [], taskCounts: { attention: 0 }, forwards: [] };
+    if (path === '/api/auth/session')
+      json = {
+        actor: { role: 'admin', sub: 'admin', sessionId: 'test' },
+        initialized: true,
+        title: '调整测试',
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      };
+    else if (path === '/api/admin/overview')
+      json = {
+        students: [],
+        resources,
+        networks: [
+          network('network-1', '测试网络一'),
+          network('network-2', '测试网络二'),
+          network('network-3', '测试网络三'),
+        ],
+        profiles: [],
+        taskCounts: { attention: 0 },
+        forwards: [],
+      };
     else if (path === '/api/admin/settings') json = { registrationOpen: true };
-    else if (path === '/api/admin/options/networks') json = [{ iface: 'vmbr0', type: 'bridge', address: '10.1.229.140', vlanAware: false }, { iface: 'vmbr1', type: 'bridge', vlanAware: true }];
+    else if (path === '/api/admin/options/networks')
+      json = [
+        { iface: 'vmbr0', type: 'bridge', address: '10.1.229.140', vlanAware: false },
+        { iface: 'vmbr1', type: 'bridge', vlanAware: true },
+      ];
     else if (path === '/api/admin/resources/resource-test/adjust' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       submissions.push(body);
       json = { taskId: 'task-adjust-1' };
     } else if (path.startsWith('/api/admin/host/')) json = { data: null, error: null, updatedAt: Date.now() };
-    else if (path === '/api/admin/resources/resource-test/status') json = { data: { status }, updatedAt: Date.now(), error: null };
-    else if (path.endsWith('/ports') || path.endsWith('/history')) json = { data: [], updatedAt: Date.now(), error: null };
-    else if (path === '/api/admin/tasks/task-adjust-1') json = { id: 'task-adjust-1', type: 'adjust', state: 'queued', step: 'pending', error: null, createdAt: 1, updatedAt: 1 };
+    else if (path === '/api/admin/resources/resource-test/status')
+      json = { data: { status }, updatedAt: Date.now(), error: null };
+    else if (path.endsWith('/ports') || path.endsWith('/history'))
+      json = { data: [], updatedAt: Date.now(), error: null };
+    else if (path === '/api/admin/tasks/task-adjust-1')
+      json = {
+        id: 'task-adjust-1',
+        type: 'adjust',
+        state: 'queued',
+        step: 'pending',
+        error: null,
+        createdAt: 1,
+        updatedAt: 1,
+      };
     else json = { data: null, error: null, updatedAt: Date.now() };
     return route.fulfill({ json });
   });
@@ -46,7 +134,8 @@ test('spec-only adjustments submit without a shutdown confirmation', async ({ pa
   const submissions = await mockWorkspace(page, 'running');
   await openAdjust(page);
   const cores = page.getByRole('combobox', { name: 'CPU 核数', exact: true });
-  await cores.fill('4'); await cores.press('Tab');
+  await cores.fill('4');
+  await cores.press('Tab');
   await page.getByRole('button', { name: '保存并应用' }).click();
   await expect(page.getByRole('dialog', { name: '调整机器配置' })).toHaveCount(0);
   expect(submissions).toHaveLength(1);
@@ -95,5 +184,12 @@ test('a stopped machine skips the shutdown confirmation but still blocks invalid
   await page.getByRole('button', { name: '保存并应用' }).click();
   await expect(page.getByRole('dialog', { name: '调整机器配置' })).toHaveCount(0);
   expect(submissions[0]).toMatchObject({ confirmShutdown: false });
-  expect((submissions[0].networks as Record<string, unknown>[])[0]).toMatchObject({ iface: 'eth0', networkId: null, bridge: 'vmbr1', ip: '192.168.60.20', macMode: 'set', mac: 'AA:BB:CC:11:22:33' });
+  expect((submissions[0].networks as Record<string, unknown>[])[0]).toMatchObject({
+    iface: 'eth0',
+    networkId: null,
+    bridge: 'vmbr1',
+    ip: '192.168.60.20',
+    macMode: 'set',
+    mac: 'AA:BB:CC:11:22:33',
+  });
 });
