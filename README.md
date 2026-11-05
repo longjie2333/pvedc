@@ -39,6 +39,8 @@ bash /opt/pvedc/deploy/install.sh
 
 安装脚本可以重复执行，已有的 API Token、gost 配置、`runtime.env` 和实例 ID 都会保留。
 
+平台只对带有本安装所有权标签（`pvedc-<实例 ID>`）的容器执行 helper 操作和删除，不要手工移除这个标签。
+
 ### 更新版本
 
 在本地仓库打包已提交的代码并上传：
@@ -51,9 +53,7 @@ git archive --format=tar.gz -o /tmp/pvedc-src.tgz HEAD
 scp /tmp/pvedc-src.tgz <PVE>:/tmp/
 ```
 
-脚本用 `sqlite3` 命令行检查数据库，`install.sh` 会安装它；更早部署的 PVE 先执行 `apt-get install sqlite3`。
-
-在 PVE 上以 root 用新包里的 `deploy/migrate.sh` 解包并构建到 `/opt/pvedc-stage`，这一步不影响线上服务：
+在 PVE 上用新包的 `deploy/migrate.sh` 进行解包：
 
 ```bash
 tar xzf /tmp/pvedc-src.tgz -O deploy/migrate.sh > /root/migrate.sh && bash /root/migrate.sh stage
@@ -65,13 +65,13 @@ tar xzf /tmp/pvedc-src.tgz -O deploy/migrate.sh > /root/migrate.sh && bash /root
 bash /opt/pvedc-stage/deploy/migrate.sh upgrade
 ```
 
-`upgrade` 停止 `pvedc`（`pvedc-gost` 不停，转发不中断），把数据库、`/var/lib/pvedc`、`/etc/pvedc`、helper 和 `pvedc.service` 备份到 `/var/backups/pvedc/<时间戳>`，用新代码迁移数据库副本并用 `sqlite3` 检查 `integrity_check`、`foreign_key_check` 和各表行数，通过后把旧代码改名为 `/opt/pvedc-before-<时间戳>`，安装新版本的 helper 与 `pvedc.service`，启动新版本。行数有变化时列出差异，输入 `yes` 才继续；检查失败或取消时重新启动旧版本，线上不变。`pvedc-gost.service` 与新版本不同时只提示，重启它会中断转发，需要时手动更新。
-
-验收后重新开放资源申请。需要回到更新前的数据库、代码、helper 和 `pvedc.service` 时执行 `rollback`，更新后写入的数据会丢失；`status` 查看服务、库版本、stage 和备份：
+若需要退回更新前的版本，请执行 `rollback` 回滚（注意，更新后写入的数据会丢失）：
 
 ```bash
 bash /opt/pvedc/deploy/migrate.sh rollback
 ```
+
+可以通过 `status` 查看当前服务、库版本、stage 和备份状态。
 
 ### 首次配置
 
@@ -80,12 +80,12 @@ bash /opt/pvedc/deploy/migrate.sh rollback
 1. **平台设置**：核对 PVE API 连接与容量保留额度。
 2. **系统模板**：下载 Ubuntu 或 Debian 模板。
 3. **网络与地址池**：新建 NAT 或桥接网络，保存后点击“应用网络”。
-   - 桥接网络的地址池必须是网络管理员允许使用、不会被 DHCP 分配给其他设备的地址段；
-   - 平台只能避开自己分配的地址和 PVE 中已登记的静态地址，无法发现校园网里未登记的设备。
+   - 桥接网络的地址池要注意不会被 DHCP 分配到其他设备；
+   - 平台只能避开自己分配和已登记的地址，无法避开已被其他设备使用的地址。
 4. **资源配置**：选择模板、存储、规格和网络，发布并设为默认。
 5. **学生名单**：导入名单，按需为学生指定配置或设置认领密钥。
 6. **平台设置**：开放认领，按需开启学生自选配置。
-7. **公网转发**：填写 Relay 与 TLS 参数，点击“应用 gost 配置”。
+7. **公网转发**：具体详细请看下方的“公网访问”章节。
 
 如果 API Token 启用了权限分离（privsep），除了用户本身的授权，还要给 Token 单独授予 `DistributionCenter` 角色，否则宿主指标会返回 403、资源选项为空：
 
@@ -119,8 +119,8 @@ gost -L "relay+tls://<USERNAME>:<PASSWORD>@:10000?bind=true&certFile=/etc/gost/c
 
 | 字段 | 填写内容 |
 | --- | --- |
-| Relay 主机 / Relay 端口 | 公网服务器地址和上面的监听端口（例如 `10000`；平台默认值是 `8443`，需要改成一致） |
-| Relay 用户名 / Relay 密码 | 上面命令中的 `<USERNAME>`、`<PASSWORD>` |
+| Relay 主机 / 端口 | 公网服务器地址和上面的监听端口（例如 `10000`；平台默认值是 `8443`，需要改成一致） |
+| Relay 用户名 / 密码 | 上面命令中的 `<USERNAME>`、`<PASSWORD>` |
 | TLS 服务名 | 证书中的名称，例如 `relay.example.edu` |
 | 自定义 CA 证书 PEM | `/etc/gost/certs/cert.pem` 的内容 |
 | 学生使用的公网主机名 | 学生连接转发端口时使用的公网 IP 或域名 |
@@ -197,20 +197,6 @@ gost -L "relay+tls://<USERNAME>:<PASSWORD>@:10000?bind=true&certFile=/etc/gost/c
 | `.gost/` | gost 工作目录 |
 | `relay-ca.pem` | 填写了自定义 Relay CA 时写入，供 gost 校验 TLS |
 
-## 运维与备份
-
-```bash
-systemctl status pvedc pvedc-gost
-```
-
-```bash
-journalctl -u pvedc -u pvedc-gost --since '30 minutes ago'
-```
-
-一致性备份：停止 `pvedc` 和 `pvedc-gost`，备份 `/var/lib/pvedc` 和 `/etc/pvedc`，再启动两项服务。恢复时保留原安装实例 ID 和主密钥，不要用新密钥打开旧数据库。用 `migrate.sh upgrade` 更新时由脚本完成备份。
-
-平台只对带有本安装所有权标签（`pvedc-<实例 ID>`）的容器执行 helper 操作和删除，不要手工移除这个标签。
-
 ## 本地开发
 
 ### 环境要求
@@ -269,8 +255,6 @@ deploy/                       安装脚本、systemd 单元、root helper
 tests/                        Vitest、Python helper 测试；tests/browser/ 为 Playwright
 docs/                         设计规范、开发经验、升级验收记录
 ```
-
-参与开发前先阅读 [AGENTS.md](AGENTS.md)、[EXPERIENCE.md](docs/EXPERIENCE.md) 和 [DESIGN.md](docs/DESIGN.md)。
 
 ## 技术细节
 
