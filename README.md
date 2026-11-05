@@ -37,10 +37,40 @@ bash /opt/pvedc/deploy/install.sh
 4. 运行 `deploy/bootstrap.py`：创建 `DistributionCenter` 角色、`pvedc@pve` 用户和 `web` API Token，读取本机 PVE CA，生成 `/etc/pvedc/bootstrap.json`、`runtime.env`、`instance-id` 和 gost 初始配置。凭据只写入文件，不打印到终端。
 5. 以 `pvedc` 身份执行 `pnpm install --frozen-lockfile` 和 `pnpm build`，安装并启动 `pvedc.service`、`pvedc-gost.service`。
 
-安装脚本可以重复执行，已有的 API Token、gost 配置、`runtime.env` 和实例 ID 都会保留。迁移和更新项目**推荐使用迁移脚本**，不带参数运行可查看用法：
+安装脚本可以重复执行，已有的 API Token、gost 配置、`runtime.env` 和实例 ID 都会保留。
+
+### 更新版本
+
+在本地仓库打包已提交的代码并上传：
 
 ```bash
-bash /opt/pvedc/deploy/migrate.sh
+git archive --format=tar.gz -o /tmp/pvedc-src.tgz HEAD
+```
+
+```bash
+scp /tmp/pvedc-src.tgz <PVE>:/tmp/
+```
+
+脚本用 `sqlite3` 命令行检查数据库，`install.sh` 会安装它；更早部署的 PVE 先执行 `apt-get install sqlite3`。
+
+在 PVE 上以 root 用新包里的 `deploy/migrate.sh` 解包并构建到 `/opt/pvedc-stage`，这一步不影响线上服务：
+
+```bash
+tar xzf /tmp/pvedc-src.tgz -O deploy/migrate.sh > /root/migrate.sh && bash /root/migrate.sh stage
+```
+
+在管理端关闭资源申请后执行更新（仍开放时会提示，输入 `y` 继续）：
+
+```bash
+bash /opt/pvedc-stage/deploy/migrate.sh upgrade
+```
+
+`upgrade` 停止 `pvedc`（`pvedc-gost` 不停，转发不中断），把数据库、`/var/lib/pvedc`、`/etc/pvedc`、helper 和 `pvedc.service` 备份到 `/var/backups/pvedc/<时间戳>`，用新代码迁移数据库副本并用 `sqlite3` 检查 `integrity_check`、`foreign_key_check` 和各表行数，通过后把旧代码改名为 `/opt/pvedc-before-<时间戳>`，安装新版本的 helper 与 `pvedc.service`，启动新版本。行数有变化时列出差异，输入 `yes` 才继续；检查失败或取消时重新启动旧版本，线上不变。`pvedc-gost.service` 与新版本不同时只提示，重启它会中断转发，需要时手动更新。
+
+验收后重新开放资源申请。需要回到更新前的数据库、代码、helper 和 `pvedc.service` 时执行 `rollback`，更新后写入的数据会丢失；`status` 查看服务、库版本、stage 和备份：
+
+```bash
+bash /opt/pvedc/deploy/migrate.sh rollback
 ```
 
 ### 首次配置
@@ -177,7 +207,7 @@ systemctl status pvedc pvedc-gost
 journalctl -u pvedc -u pvedc-gost --since '30 minutes ago'
 ```
 
-一致性备份：停止 `pvedc` 和 `pvedc-gost`，备份 `/var/lib/pvedc` 和 `/etc/pvedc`，再启动两项服务。恢复时保留原安装实例 ID 和主密钥，不要用新密钥打开旧数据库。更新源码前也先做同样的备份。
+一致性备份：停止 `pvedc` 和 `pvedc-gost`，备份 `/var/lib/pvedc` 和 `/etc/pvedc`，再启动两项服务。恢复时保留原安装实例 ID 和主密钥，不要用新密钥打开旧数据库。用 `migrate.sh upgrade` 更新时由脚本完成备份。
 
 平台只对带有本安装所有权标签（`pvedc-<实例 ID>`）的容器执行 helper 操作和删除，不要手工移除这个标签。
 

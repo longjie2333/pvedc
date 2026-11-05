@@ -23,7 +23,7 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 EOF
 APT_SOURCE=(-o "Dir::Etc::sourcelist=$WORK/debian.sources" -o 'Dir::Etc::sourceparts=-')
 apt-get "${APT_SOURCE[@]}" update
-apt-get "${APT_SOURCE[@]}" install -y curl ca-certificates python3 sudo make g++ xz-utils
+apt-get "${APT_SOURCE[@]}" install -y curl ca-certificates python3 sudo make g++ xz-utils sqlite3
 id pvedc >/dev/null 2>&1 || useradd --system --home /var/lib/pvedc --shell /usr/sbin/nologin pvedc
 install -d -m 755 /opt/pvedc-runtime /usr/local/libexec
 cd "$WORK"

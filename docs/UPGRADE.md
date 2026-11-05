@@ -57,6 +57,35 @@
 
 ## 后续实施注意
 
+### 2026-11-05 migrate.sh 改回 sqlite3、随代码安装 helper 与 unit、资源申请开放时确认（本地开发与沙箱验证）
+
+- 目标：按用户要求调整 2026-11-02 版本。本条取代该条中“数据库读写改用 better-sqlite3”“helper 和 unit 只提示不安装”“资源申请仍开放时拒绝更新”三项。
+- 提交：按用户要求，原先的 6 个提交（`a11460a` 到 `4e13ba7`，含本条与 2026-11-02 条的改动和记录）已在 `b4d377e` 之后合并为一个提交；下面各项都在这个提交中。
+- sqlite3：备份、`integrity_check`、`foreign_key_check`、各表行数、`status` 的库版本改用 `sqlite3` 命令行，行数差异用 awk 比对；迁移本身仍由新代码的 `openDatabase()` 执行。`install.sh` 的依赖加入 `sqlite3`，`migrate.sh` 缺少 `sqlite3` 时提示 `apt-get install sqlite3`（已部署的 PVE 需要手动安装一次）。
+- helper 与 unit：`upgrade` 把已安装的 `/usr/local/libexec/pvedc-helper` 和 `/etc/systemd/system/pvedc.service` 备份到 `$bk`，切换目录后安装新版本（755 / 644）并 `systemctl daemon-reload`；`rollback` 用备份还原两者并 `daemon-reload`，备份缺少两者时拒绝回滚。`pvedc-gost.service` 与新版本不同时只提示，因为重启它会中断转发。sudoers 规则固定指向 helper 路径，不需要改。
+- 资源申请确认：资源申请仍开放时提示“停机期间学生申请会失败”，输入 `y` 进入后续流程，其他输入取消；其余确认仍需输入 `yes`。
+- 沙箱验证：`sqlite3` 命令行在本机不可用且无法下载，沙箱用 Python `sqlite3` 模块写的替身执行 `sqlite3 DB SQL` 与 `.backup`；其他桩同 2026-11-02。v1 库 upgrade 输出「schema_version 1 → 2」「6 张表行数一致」，迁移后 3 台资源 IP 不变；helper 与 unit 被替换为新版本、`daemon-reload` 一次，gost unit 只提示；rollback 后 helper、unit 恢复旧内容，库版本为 1；新版本启动失败后 rollback 同样恢复；资源申请开放时输入 `n` 取消且旧版本保持运行，输入 `y` 后进入后续流程；`meta: 1 → 2` 时输入 `no` 恢复旧版本；`schema_version=9` 时恢复旧版本；重复 rollback 被拒绝。
+- 本地验证：`bash -n` 通过；`pnpm format:check`、`pnpm typecheck` 通过；Vitest 22 个文件 111 项通过；Python helper 6 项通过（直接执行 `python -m unittest`，`pnpm test:helper` 在本机后台 shell 中挂起未返回，与测试内容无关）。未改动前端，未跑 Playwright。
+- 测试中发现并修复：`db_check` 曾以相对路径调用，`sqlite3` 在当前目录新建空库后检查通过；改为传入 `$bk` 下的完整路径，修复后才提交。
+- 未验证：真实 `sqlite3` 命令行的输出格式与 `.backup` 行为；真实 PVE 上的 root、`install -o pvedc`、systemd、`runuser` 构建；正式库从 v1 升级到 v2。
+
+### 2026-11-02 精简版本更新脚本 migrate.sh（本地开发与沙箱验证）
+
+- 目标：把 7 个子命令、靠状态文件串联的部署脚本精简为 `stage`、`upgrade`、`rollback`、`status`，修正会误报和写死版本的检查。
+- 提交 `b4d377e`：把 `master` 上的 `deploy/migrate.sh`（`e4b528d`）原样纳入 `dev`。改写脚本并在 README 新增「更新版本」的改动，已与 2026-11-05 条合并为同一个提交。
+- `upgrade` 流程：停止 `pvedc`（`pvedc-gost` 不停）→ 备份 `/var/lib/pvedc` 与 `/etc/pvedc` 到 `/var/backups/pvedc/<时间戳>` → 用新代码打开冷库副本执行迁移，检查 `integrity_check`、`foreign_key_check` 与各表行数 → 旧代码改名为 `/opt/pvedc-before-<时间戳>`，stage 改名为 `/opt/pvedc` → 启动后等待 `/api/public/roster` 返回 200。切换目录前任何失败或取消都会重新启动旧版本。
+- 有意的行为变化：
+  - 行数比对改在冷库副本上严格比对。原脚本在服务启动后比对，会把过期会话、限流记录的清理误判为数据丢失。行数有变化时列出差异，输入 `yes` 才继续，`-y` 不再存在。新建的空表不算差异。
+  - 删去构建标记（`networkIds,student_keys`）、resources 全表 IPv4 正则、转发记录比对、日志关键字 grep、`master.key` 与 `/etc/pvedc` 哈希比对、`deploy-state.env` 状态文件、`--force`。
+  - 备份不再复制代码目录（改名保留），也不再单独备份 helper 和 unit。新版本的 helper 或 unit 与已安装的不同时只提示，不安装。
+  - 资源申请仍开放时拒绝更新（读取 `/api/public/roster` 的 `open`），取代人工确认。
+  - 数据库读写改用 stage 内的 better-sqlite3，不再依赖 `sqlite3` 命令行（`install.sh` 不安装它）。
+  - `rollback` 只回滚最近一次已切换的备份：用 `before.sqlite` 还原数据库，用 `/opt/pvedc-before-<时间戳>` 还原代码。最近的备份没有对应旧代码目录时拒绝执行。
+  - 打包改为 `git archive`，只包含已提交文件。首次使用新脚本时，从新包中解出 `deploy/migrate.sh` 再执行 `stage`。
+- 沙箱验证：在 Git Bash 下把脚本固定路径改写到临时目录，用桩替换 `systemctl`、`curl`、`runuser` 等命令，真实执行 better-sqlite3 与 `server/lib/db.ts`。v1 库（数据留在 `-wal` 中）stage → upgrade 输出「schema_version 1 → 2」「6 张表行数一致」，迁移后 3 台资源 IP 不变；资源申请开放时拒绝；确认输入 `no` 时旧版本恢复运行；缺少 `instance_id` 的 v1 库显示 `meta: 1 → 2` 并要求确认；`schema_version=9` 时迁移检查失败并恢复旧版本；新版本启动失败后 `rollback` 还原代码和数据库；重复 `rollback` 被拒绝。生产 v1 代码（`7c6f639`）启动时已写入 `instance_id`，正式库不会触发 `meta` 行数确认。
+- 本地验证：`pnpm format:check` 通过；`pnpm typecheck` 通过；`pnpm test` 通过（22 个文件 111 项 Vitest + 6 项 Python helper）。未改动前端，未跑 Playwright。
+- 未验证：未在真实 PVE 上执行（root 权限、`install -o pvedc`、systemd、`runuser` 构建、Linux 下 Node 24 对 `db.ts` 的类型剥离）；正式库从 v1 升级到 v2 尚未执行。
+
 ### 2026-10-31 设计规范改为根目录 DESIGN.md（本地，仅文档）
 
 - 删除 `docs/DESIGN-SYSTEM.md`，按 DESIGN.md 格式（`@google/design.md` 0.4.0）新建根目录 `DESIGN.md`：frontmatter 记录 `src/styles.css` 中的颜色变量与 `sans`/`mono` 字体，正文记录外壳、页面模板、组件、文案、无障碍规则和明确禁止项。`AGENTS.md`、`README.md` 的引用同步改为 `DESIGN.md`；代码组织规则只保留在 `AGENTS.md`「前端结构规则」。
