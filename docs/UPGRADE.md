@@ -57,7 +57,15 @@
 
 ## 后续实施注意
 
-### 2026-11-05 migrate.sh 改回 sqlite3、随代码安装 helper 与 unit、资源申请开放时确认（本地开发与沙箱验证）
+### 2026-11-16 登录失效时服务端清除会话 Cookie（本地开发与测试）
+
+- 目标：修改密码（改密、重建、重置认领、停用或删除学生都会撤销会话）以及刷新令牌过期后，浏览器不再残留 `pvedc_session`／`pvedc_refresh`，无需手动清理 Cookie 即可回到登录页。
+- 根因：h3 返回状态码 ≥ 400 的 `Response` 时会丢弃预先写入 `event.res.headers` 的头。`api()` 用 `Response.json(...)` 返回错误，`auth/refresh` 在 401 前写入的 `setCookie`（清除两个 Cookie）与 `no-store` 全部被丢掉，浏览器一直保留旧的刷新 Cookie。
+- 实现：`server/lib/http.ts` 的 `api()` 改用 `jsonError()` 构造错误响应，把 `event.res.headers` 中已暂存的非 `set-cookie` 头与全部 `set-cookie` 复制到新的 `Response`；所有错误分支（400/401/403/409/413/415/500）统一走这条路径。
+- 测试：`tests/auth.integration.test.ts` 新增“clears both cookies when the refresh session has been revoked”，验证 401 响应携带两个清除 Cookie、`cache-control: no-store`，并用清除后的 Cookie 请求 `auth/session` 得到 `actor: null`。去掉修复时该用例失败（`expected [] to include 'pvedc_session='`），恢复后通过。
+- 本地验证：`pnpm typecheck`、`npx prettier --check`、构建、112 项 Vitest 全部通过。Playwright 在本机无法启动 Chromium（`browserType.launch: spawn UNKNOWN`），会话相关浏览器回归未执行，属于环境问题而非本改动。
+- 有意的行为变化：登录失效的错误响应现在保留 `no-store`、`nosniff`、`Referrer-Policy` 与预先设置的 Cookie；此前这些头只在成功响应上出现。
+
 
 - 目标：按用户要求调整 2026-11-02 版本。本条取代该条中“数据库读写改用 better-sqlite3”“helper 和 unit 只提示不安装”“资源申请仍开放时拒绝更新”三项。
 - 提交：按用户要求，原先的 6 个提交（`a11460a` 到 `4e13ba7`，含本条与 2026-11-02 条的改动和记录）已在 `b4d377e` 之后合并为一个提交；下面各项都在这个提交中。

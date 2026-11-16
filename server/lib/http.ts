@@ -30,6 +30,14 @@ export function cookieSecurity(event: H3Event) {
       (external.startsWith('https:') && event.req.headers.get('origin') === new URL(external).origin),
   };
 }
+// Returning a Response with status >= 400 makes h3 drop prepared headers, including cookies that
+// were cleared before throwing, so error bodies copy them over explicitly.
+function jsonError(event: H3Event, status: number, body: Record<string, string>) {
+  const response = new Headers({ 'Content-Type': 'application/json' });
+  for (const [name, value] of event.res.headers) if (name !== 'set-cookie') response.set(name, value);
+  for (const cookie of event.res.headers.getSetCookie()) response.append('set-cookie', cookie);
+  return new Response(JSON.stringify(body), { status, headers: response });
+}
 export function api(handler: (event: H3Event) => unknown | Promise<unknown>) {
   return defineHandler(async event => {
     event.res.headers.set('Cache-Control', 'no-store');
@@ -50,21 +58,20 @@ export function api(handler: (event: H3Event) => unknown | Promise<unknown>) {
       return await handler(event);
     } catch (error) {
       if (error instanceof ZodError)
-        return Response.json({ error: error.issues[0]?.message || '输入无效', code: 'VALIDATION' }, { status: 400 });
-      if (error instanceof AppError)
-        return Response.json({ error: error.message, code: error.code }, { status: error.status });
+        return jsonError(event, 400, { error: error.issues[0]?.message || '输入无效', code: 'VALIDATION' });
+      if (error instanceof AppError) return jsonError(event, error.status, { error: error.message, code: error.code });
       if ((error as { status?: number })?.status === 413)
-        return Response.json({ error: '请求内容超过 2 MiB 限制', code: 'BODY_TOO_LARGE' }, { status: 413 });
+        return jsonError(event, 413, { error: '请求内容超过 2 MiB 限制', code: 'BODY_TOO_LARGE' });
       const sqlite = error as { code?: string };
       if (sqlite.code?.startsWith('SQLITE_CONSTRAINT'))
-        return Response.json({ error: '记录冲突或仍被资源引用，请刷新后重试', code: 'CONFLICT' }, { status: 409 });
+        return jsonError(event, 409, { error: '记录冲突或仍被资源引用，请刷新后重试', code: 'CONFLICT' });
       console.error(
         '[api]',
         event.req.method,
         event.url.pathname,
         error instanceof Error ? error.name : 'UnknownError',
       );
-      return Response.json({ error: '服务处理失败，请查看管理员诊断', code: 'INTERNAL' }, { status: 500 });
+      return jsonError(event, 500, { error: '服务处理失败，请查看管理员诊断', code: 'INTERNAL' });
     }
   });
 }

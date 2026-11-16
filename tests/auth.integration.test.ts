@@ -299,6 +299,24 @@ describe('real HTTP authentication and authorization', () => {
     expect((await call('admin/host/status', undefined, studentCookie)).response.status).toBe(403);
     expect((await call('me/overview', undefined, studentCookie)).json.student.id).toBe('a00001234');
   });
+  it('clears both cookies when the refresh session has been revoked', async () => {
+    db.prepare('UPDATE students SET password_hash=? WHERE id=?').run(
+      await argon2.hash('Revoked-session-password'),
+      'a00001235',
+    );
+    const login = await call('auth/student', { studentId: 'a00001235', password: 'Revoked-session-password' });
+    expect(login.response.status).toBe(200);
+    // Changing the platform password revokes the student's sessions the same way.
+    db.prepare('DELETE FROM sessions WHERE subject=?').run('a00001235');
+    expect((await call('me/overview', undefined, login.cookie)).response.status).toBe(401);
+    const refresh = await call('auth/refresh', {}, login.cookie);
+    expect(refresh.response.status).toBe(401);
+    const cleared = refresh.response.headers.getSetCookie().map(cookie => cookie.split(';')[0]);
+    expect(cleared).toContain('pvedc_session=');
+    expect(cleared).toContain('pvedc_refresh=');
+    expect(refresh.response.headers.get('cache-control')).toBe('no-store');
+    expect((await call('auth/session', undefined, cleared.join('; '))).json).toMatchObject({ actor: null });
+  });
   it('scopes task notifications to the owner and never returns task secrets', async () => {
     const insert = db.prepare(
       "INSERT INTO jobs(id,type,student_id,state,step,payload,secret,created_at,updated_at) VALUES(?,?,?,'succeeded','complete','{}','do-not-return',1,1)",
